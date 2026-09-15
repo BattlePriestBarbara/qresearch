@@ -1,0 +1,50 @@
+# =====================================================================================
+# qresearch - direct development dependencies (task INF-02)
+#
+# These tools implement the mandatory quality gates of PROJECT_SPEC 3.8 / 5.5.
+# All pins are full patch versions so a gate result is reproducible across machines.
+#
+# The `pre-commit` hooks in .pre-commit-config.yaml use `language: system`, i.e. they call
+# exactly these interpreters/tools from the active pinned environment. This is deliberate:
+# it removes floating hook revisions and guarantees the gate runs the same versions as CI.
+# =====================================================================================
+
+# --- Formatting and import ordering ----------------------------------------------------------
+black==24.8.0
+isort==5.13.2
+
+# --- Static analysis -------------------------------------------------------------------------
+flake8==7.0.0
+# pylint 2.16.2 (the version present in the base environment) predates Python 3.12 support and
+# aborts with astroid F0002 on this codebase, so it is deliberately upgraded and pinned here.
+# Side effect, recorded deliberately: the unrelated base-environment package `spyder 5.5.1`
+# declares `pylint<3.1`, so `pip check` reports that single conflict. Spyder is not a project
+# dependency; correctness of the lint gate on Python 3.12 takes precedence.
+pylint==3.3.1
+
+# --- Static typing (mandatory for tensor-shape safety, PROJECT_SPEC 5.2) ---------------------
+mypy==1.11.2
+
+# --- Testing ---------------------------------------------------------------------------------
+pytest==7.4.4
+pytest-mock==3.15.1
+
+# --- Pre-commit framework and notebook hygiene ------------------------------------------------
+pre-commit==4.6.2
+nbstripout==0.9.1
+
+# --- Optional fast linter (runs alongside flake8; identical selection in pyproject.toml) -----
+ruff==0.16.7
+
+# --- Stub package for PyYAML (pure stubs, no dependency edges: cannot cause version drift) ----
+types-PyYAML==6.0.12.20260906
+
+# --- Standards-compliant requirement/marker parsing, used by scripts/lock_requirements.py ------
+packaging==26.2
+
+# --- Deliberately NOT installed: pandas-stubs / scipy-stubs / hypothesis ----------------------
+# pandas-stubs and scipy-stubs currently require numpy>=2.1 and silently UPGRADED numpy past
+# the pinned 1.26.4 when installed (observed, then reverted).  They are rejected by
+# PROJECT_SPEC.md 3.1 (float-critical pins) and are replaced by per-module mypy overrides;
+# see the "third-party policy" block in .mypy.ini.
+# hypothesis is optional and only needed when property-based tests are added.

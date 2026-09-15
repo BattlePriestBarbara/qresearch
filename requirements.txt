@@ -1,0 +1,47 @@
+# =====================================================================================
+# qresearch - direct runtime dependencies (task INF-01)
+#
+# POLICY (PROJECT_SPEC.md 3.1):
+#   * Every pin is a FULL PATCH VERSION (X.Y.Z). Ranges and `~=` are forbidden.
+#   * Float-critical packages (numpy/scipy/pandas/torch) MUST come from PyPI wheels so the
+#     BLAS/LAPACK linkage is byte-identical across machines. Install these from PyPI, not
+#     from a conda channel; see environment.yml for the rationale.
+#   * Version drift in these packages changes the low-order bits of computed statistics and
+#     can flip a Newey-West p-value across a significance threshold.
+#
+# This file lists DIRECT dependencies only. The fully resolved transitive closure (the real
+# lock file, including hashes) is requirements.lock.txt, produced by scripts/lock_requirements.py.
+# =====================================================================================
+
+# --- Core quant data/backtest framework (pinned exactly; API contracts of PROJECT_SPEC 3.4) ---
+pyqlib==0.9.7
+
+# --- Numerical core (float-critical) ---------------------------------------------------------
+numpy==1.26.4
+scipy==1.13.1
+pandas==2.2.2
+
+# --- Statistical inference (test oracle for the HAC estimator, PROJECT_SPEC 3.4.6) -----------
+statsmodels==0.14.2
+
+# --- Deep learning (Student-t temporal networks, PROJECT_SPEC 2.3) --------------------------
+torch==2.8.0
+
+# --- Convex portfolio optimization (PROJECT_SPEC 2.4) ---------------------------------------
+cvxpy==1.9.1
+
+# --- Experiment tracking (Recorder backend, PROJECT_SPEC 3.7) -------------------------------
+mlflow==3.2.0
+
+# --- Non-neural control arm (PROJECT_SPEC NN-10) --------------------------------------------
+lightgbm==4.6.0
+
+# --- Reporting figures (PROJECT_SPEC 3.4.7) -------------------------------------------------
+matplotlib==3.8.4
+
+# --- Model-selection utilities (purged CV diagnostics, PROJECT_SPEC ST-08/NN-09) -------------
+scikit-learn==1.5.1
+
+# --- Configuration and tabular IO (declarative configs, PROJECT_SPEC 3.5) -------------------
+PyYAML==6.0.1
+pyarrow==21.0.0

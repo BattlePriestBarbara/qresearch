@@ -1,0 +1,368 @@
+# =====================================================================================
+# requirements.lock.txt - EXACT DEPENDENCY CLOSURE OF THE VERIFIED ENVIRONMENT (INF-01)
+#
+# GENERATED FILE - do not edit by hand. Regenerate with:
+#     D:\Anaconda3\python.exe scripts/lock_requirements.py [--hashes]
+#
+# Generated  : 2026-09-15T16:45:03+00:00
+# Python     : 3.12.7 on Windows AMD64
+# Interpreter: D:\Anaconda3\python.exe
+#
+# Rationale (PROJECT_SPEC.md 3.1): a silent version or build drift in numpy/scipy/torch
+# perturbs the low-order bits of the IC series and can move a Newey-West p-value across a
+# significance threshold. The lock makes such drift impossible to introduce unnoticed.
+# =====================================================================================
+# Method : transitive Requires-Dist walk over the INSTALLED, contract-verified
+#          distributions (offline, deterministic).  Not a fresh PyPI resolution: the
+#          closure recorded here is the one that actually produced the verified numbers.
+# Install: D:\Anaconda3\python.exe -m pip install --no-deps -r requirements.lock.txt
+# Digests: see requirements.lock.hashes.txt (pip install --require-hashes)
+
+alembic==1.18.4
+annotated-doc==0.0.4
+annotated-types==0.6.0
+anyio==4.2.0
+argon2-cffi==21.3.0
+argon2-cffi-bindings==21.2.0
+astroid==3.3.11
+asttokens==2.0.5
+async-lru==2.0.4
+attrs==23.1.0
+babel==2.11.0
+beautifulsoup4==4.12.3
+black==24.8.0
+bleach==4.1.0
+blinker==1.6.2
+cachetools==5.3.3
+certifi==2025.10.5
+cffi==1.17.1
+cfgv==3.5.0
+charset-normalizer==3.3.2
+clarabel==0.11.1
+click==8.4.2
+cloudpickle==3.0.0
+colorama==0.4.6
+comm==0.2.1
+contourpy==1.2.0
+cryptography==41.0.7
+cvxpy==1.9.1
+cycler==0.12.1
+databricks-sdk==0.67.0
+debugpy==1.6.7
+decorator==5.1.1
+defusedxml==0.7.1
+dill==0.3.8
+distlib==0.4.3
+dnspython==2.8.0
+docker==7.1.0
+executing==0.8.3
+fastapi==0.136.3
+fastjsonschema==2.16.2
+filelock==3.29.3
+fire==0.7.1
+flake8==7.0.0
+flask==3.0.3
+fonttools==4.63.0
+fsspec==2024.6.1
+gitdb==4.0.7
+gitpython==3.1.43
+google-auth==2.53.0
+graphene==3.4.3
+graphql-core==3.2.11
+graphql-relay==3.2.0
+greenlet==3.0.1
+gym==0.26.2
+gym-notices==0.1.0
+h11==0.14.0
+highspy==1.14.0
+httpcore==1.0.2
+httpx==0.27.0
+identify==2.6.19
+idna==3.7
+importlib-metadata==7.0.1
+iniconfig==1.1.1
+ipykernel==6.28.0
+ipython==8.27.0
+ipython-genutils==0.2.0
+ipywidgets==7.8.1
+isort==5.13.2
+itsdangerous==2.2.0
+jedi==0.19.1
+jinja2==3.1.4
+joblib==1.4.2
+json5==0.9.6
+jsonschema==4.23.0
+jsonschema-specifications==2023.7.1
+jupyter==1.0.0
+jupyter-client==8.8.0
+jupyter-console==6.6.3
+jupyter-core==5.9.1
+jupyter-events==0.10.0
+jupyter-lsp==2.2.0
+jupyter-server==2.14.1
+jupyter-server-terminals==0.4.4
+jupyterlab==4.2.5
+jupyterlab-pygments==0.1.2
+jupyterlab-server==2.27.3
+jupyterlab-widgets==1.0.0
+kiwisolver==1.5.0
+lightgbm==4.6.0
+loguru==0.7.3
+mako==1.3.12
+markupsafe==2.1.3
+matplotlib==3.8.4
+matplotlib-inline==0.1.6
+mccabe==0.7.0
+mistune==2.0.4
+mlflow==3.2.0
+mlflow-skinny==3.2.0
+mlflow-tracing==3.2.0
+mpmath==1.3.0
+mypy==1.11.2
+mypy-extensions==1.0.0
+nbclient==0.8.0
+nbconvert==7.16.4
+nbformat==5.10.4
+nbstripout==0.9.1
+nest-asyncio==1.6.0
+networkx==3.3
+nodeenv==1.10.0
+notebook==7.2.2
+notebook-shim==0.2.3
+numpy==1.26.4
+opentelemetry-api==1.42.1
+opentelemetry-sdk==1.42.1
+opentelemetry-semantic-conventions==0.63b1
+osqp==1.1.2
+overrides==7.4.0
+packaging==26.2
+pandas==2.2.2
+pandocfilters==1.5.0
+parso==0.8.3
+pathspec==0.10.3
+patsy==0.5.6
+pillow==12.3.0
+platformdirs==3.10.0
+pluggy==1.0.0
+pre-commit==4.6.2
+prometheus-client==0.14.1
+prompt-toolkit==3.0.43
+protobuf==7.35.1
+psutil==5.9.0
+pure-eval==0.2.2
+pyarrow==21.0.0
+pyasn1==0.4.8
+pyasn1-modules==0.2.8
+pycodestyle==2.11.1
+pycparser==2.21
+pydantic==2.13.4
+pydantic-core==2.46.4
+pydantic-settings==2.14.1
+pyflakes==3.2.0
+pygments==2.15.1
+pylint==3.3.1
+pymongo==4.17.0
+pyparsing==3.3.2
+pyqlib==0.9.7
+pytest==7.4.4
+pytest-mock==3.15.1
+python-dateutil==2.9.0.post0
+python-discovery==1.6.0
+python-dotenv==0.21.0
+python-json-logger==2.0.7
+python-redis-lock==4.0.1
+pytz==2024.1
+pywin32==305.1
+pywinpty==2.0.10
+pyyaml==6.0.1
+pyzmq==25.1.2
+qdldl==0.1.9.post1
+qtconsole==5.5.1
+qtpy==2.4.1
+redis==8.0.0
+referencing==0.30.2
+requests==2.32.3
+rfc3339-validator==0.1.4
+rfc3986-validator==0.1.1
+rpds-py==0.10.6
+ruamel-yaml==0.18.6
+ruamel-yaml-clib==0.2.8
+ruff==0.16.7
+scikit-learn==1.5.1
+scipy==1.13.1
+scs==3.2.11
+send2trash==1.8.2
+setuptools==75.1.0
+six==1.17.0
+smmap==4.0.0
+sniffio==1.3.0
+soupsieve==2.5
+sparsediffpy==0.3.0
+sqlalchemy==2.0.34
+sqlparse==0.5.5
+stack-data==0.2.0
+starlette==1.2.1
+statsmodels==0.14.2
+sympy==1.14.0
+termcolor==2.1.0
+terminado==0.17.1
+threadpoolctl==3.5.0
+tinycss2==1.2.1
+tomlkit==0.11.1
+torch==2.8.0
+tornado==6.4.1
+tqdm==4.66.5
+traitlets==5.14.3
+types-pyyaml==6.0.12.20260906
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+tzdata==2023.3
+urllib3==2.2.3
+uvicorn==0.49.0
+virtualenv==21.7.9
+waitress==3.0.2
+wcwidth==0.2.5
+webencodings==0.5.1
+websocket-client==1.8.0
+werkzeug==3.0.3
+widgetsnbextension==3.6.6
+win32-setctime==1.2.0
+zipp==3.17.0
+
+# --- provenance of distributions that are NOT plain PyPI-wheel installs ---
+# annotated-types: conda:pkgs/main build=py312haa95532_0
+# anyio: conda:pkgs/main build=py312haa95532_0
+# argon2-cffi: conda:pkgs/main build=pyhd3eb1b0_0
+# argon2-cffi-bindings: conda:pkgs/main build=py312h2bbff1b_0
+# asttokens: conda:pkgs/main build=pyhd3eb1b0_0
+# async-lru: conda:pkgs/main build=py312haa95532_0
+# attrs: conda:pkgs/main build=py312haa95532_0
+# babel: conda:pkgs/main build=py312haa95532_0
+# beautifulsoup4: conda:pkgs/main build=py312haa95532_0
+# black: conda:pkgs/main build=py312haa95532_0
+# bleach: conda:pkgs/main build=pyhd3eb1b0_0
+# blinker: conda:pkgs/main build=py312haa95532_0
+# cachetools: conda:pkgs/main build=py312haa95532_0
+# certifi: conda:pkgs/main build=py312haa95532_0
+# cffi: conda:pkgs/main build=py312h827c3e9_0
+# charset-normalizer: conda:pkgs/main build=pyhd3eb1b0_0
+# cloudpickle: conda:pkgs/main build=py312haa95532_0
+# colorama: conda:pkgs/main build=py312haa95532_0
+# comm: conda:pkgs/main build=py312haa95532_0
+# debugpy: conda:pkgs/main build=py312hd77b12b_0
+# decorator: conda:pkgs/main build=pyhd3eb1b0_0
+# defusedxml: conda:pkgs/main build=pyhd3eb1b0_0
+# dill: conda:pkgs/main build=py312haa95532_0
+# executing: conda:pkgs/main build=pyhd3eb1b0_0
+# flake8: conda:pkgs/main build=py312haa95532_0
+# flask: conda:pkgs/main build=py312haa95532_0
+# fsspec: conda:pkgs/main build=py312haa95532_0
+# gitdb: conda:pkgs/main build=pyhd3eb1b0_0
+# gitpython: conda:pkgs/main build=py312haa95532_0
+# greenlet: conda:pkgs/main build=py312hd77b12b_0
+# gym: NO PYPI WHEEL for this interpreter: installer=pip conda:pypi version=0.26.2 build=pypi_0
+# gym-notices: NO PYPI WHEEL for this interpreter: installer=pip conda:pypi version=0.1.0 build=pypi_0
+# h11: conda:pkgs/main build=py312haa95532_0
+# httpcore: conda:pkgs/main build=py312haa95532_0
+# httpx: conda:pkgs/main build=py312haa95532_0
+# idna: conda:pkgs/main build=py312haa95532_0
+# importlib-metadata: conda:pkgs/main build=py312haa95532_0
+# iniconfig: conda:pkgs/main build=pyhd3eb1b0_0
+# ipykernel: conda:pkgs/main build=py312haa95532_0
+# ipython: conda:pkgs/main build=py312haa95532_0
+# ipython-genutils: conda:pkgs/main build=pyhd3eb1b0_1
+# ipywidgets: conda:pkgs/main build=py312haa95532_0
+# isort: conda:pkgs/main build=py312haa95532_0
+# itsdangerous: conda:pkgs/main build=py312haa95532_0
+# jedi: conda:pkgs/main build=py312haa95532_0
+# jinja2: conda:pkgs/main build=py312haa95532_0
+# joblib: conda:pkgs/main build=py312haa95532_0
+# json5: conda:pkgs/main build=pyhd3eb1b0_0
+# jsonschema: conda:pkgs/main build=py312haa95532_0
+# jsonschema-specifications: conda:pkgs/main build=py312haa95532_0
+# jupyter: conda:pkgs/main build=py312haa95532_9
+# jupyter-console: conda:pkgs/main build=py312haa95532_1
+# jupyter-events: conda:pkgs/main build=py312haa95532_0
+# jupyter-lsp: conda:pkgs/main build=py312haa95532_0
+# jupyter-server: conda:pkgs/main build=py312haa95532_0
+# jupyter-server-terminals: conda:pkgs/main build=py312haa95532_1
+# jupyterlab: conda:pkgs/main build=py312haa95532_0
+# jupyterlab-pygments: conda:pkgs/main build=py_0
+# jupyterlab-server: conda:pkgs/main build=py312haa95532_0
+# jupyterlab-widgets: conda:pkgs/main build=pyhd3eb1b0_1
+# markupsafe: conda:pkgs/main build=py312h2bbff1b_0
+# matplotlib-inline: conda:pkgs/main build=py312haa95532_0
+# mccabe: conda:pkgs/main build=pyhd3eb1b0_0
+# mistune: conda:pkgs/main build=py312haa95532_0
+# mpmath: conda:pkgs/main build=py312haa95532_0
+# mypy: conda:pkgs/main build=py312h827c3e9_0
+# mypy-extensions: conda:pkgs/main build=py312haa95532_0
+# nbclient: conda:pkgs/main build=py312haa95532_0
+# nbconvert: conda:pkgs/main build=py312haa95532_0
+# nbformat: conda:pkgs/main build=py312haa95532_0
+# nest-asyncio: conda:pkgs/main build=py312haa95532_0
+# networkx: conda:pkgs/main build=py312haa95532_0
+# notebook: conda:pkgs/main build=py312haa95532_1
+# notebook-shim: conda:pkgs/main build=py312haa95532_0
+# overrides: conda:pkgs/main build=py312haa95532_0
+# pandas: conda:pkgs/main build=py312h0158946_0
+# pandocfilters: conda:pkgs/main build=pyhd3eb1b0_0
+# parso: conda:pkgs/main build=pyhd3eb1b0_0
+# pathspec: conda:pkgs/main build=py312haa95532_0
+# patsy: conda:pkgs/main build=py312haa95532_0
+# platformdirs: conda:pkgs/main build=py312haa95532_0
+# pluggy: conda:pkgs/main build=py312haa95532_1
+# prometheus-client: conda:pkgs/main build=py312haa95532_0
+# prompt-toolkit: conda:pkgs/main build=hd3eb1b0_0
+# psutil: conda:pkgs/main build=py312h2bbff1b_0
+# pure-eval: conda:pkgs/main build=pyhd3eb1b0_0
+# pyarrow: conda:pkgs/main build=py312ha5e6156_0
+# pyasn1: conda:pkgs/main build=pyhd3eb1b0_0
+# pyasn1-modules: conda:pkgs/main build=py_0
+# pycodestyle: conda:pkgs/main build=py312haa95532_0
+# pycparser: conda:pkgs/main build=pyhd3eb1b0_0
+# pyflakes: conda:pkgs/main build=py312haa95532_0
+# pygments: conda:pkgs/main build=py312haa95532_1
+# pytest: conda:pkgs/main build=py312haa95532_0
+# python-dotenv: conda:pkgs/main build=py312haa95532_0
+# python-json-logger: conda:pkgs/main build=py312haa95532_0
+# pytz: conda:pkgs/main build=py312haa95532_0
+# pywin32: conda:pkgs/main build=py312h2bbff1b_0
+# pywinpty: conda:pkgs/main build=py312h5da7b33_0
+# pyyaml: conda:pkgs/main build=py312h2bbff1b_0
+# pyzmq: conda:pkgs/main build=py312hd77b12b_0
+# qtconsole: conda:pkgs/main build=py312haa95532_0
+# qtpy: conda:pkgs/main build=py312haa95532_0
+# referencing: conda:pkgs/main build=py312haa95532_0
+# requests: conda:pkgs/main build=py312haa95532_0
+# rfc3339-validator: conda:pkgs/main build=py312haa95532_0
+# rfc3986-validator: conda:pkgs/main build=py312haa95532_0
+# rpds-py: conda:pkgs/main build=py312h062c2fa_0
+# ruamel-yaml: conda:pkgs/main build=py312h2bbff1b_0
+# ruamel-yaml-clib: conda:pkgs/main build=py312h827c3e9_0
+# scikit-learn: conda:pkgs/main build=py312h0158946_0
+# send2trash: conda:pkgs/main build=py312haa95532_0
+# setuptools: conda:pkgs/main build=py312haa95532_0
+# smmap: conda:pkgs/main build=pyhd3eb1b0_0
+# sniffio: conda:pkgs/main build=py312haa95532_0
+# soupsieve: conda:pkgs/main build=py312haa95532_0
+# sqlalchemy: conda:pkgs/main build=py312h54f65d0_0
+# stack-data: conda:pkgs/main build=pyhd3eb1b0_0
+# statsmodels: conda:pkgs/main build=py312h4b0e54e_0
+# termcolor: conda:pkgs/main build=py312haa95532_0
+# terminado: conda:pkgs/main build=py312haa95532_0
+# threadpoolctl: conda:pkgs/main build=py312hfc267ef_0
+# tinycss2: conda:pkgs/main build=py312haa95532_0
+# tomlkit: conda:pkgs/main build=py312haa95532_0
+# torch: conda:pypi build=pypi_0
+# tornado: conda:pkgs/main build=py312h827c3e9_0
+# tqdm: conda:pkgs/main build=py312hfc267ef_0
+# traitlets: conda:pkgs/main build=py312haa95532_0
+# tzdata: conda:pkgs/main build=h04d1e81_0
+# urllib3: conda:pkgs/main build=py312haa95532_0
+# wcwidth: conda:pkgs/main build=pyhd3eb1b0_0
+# webencodings: conda:pkgs/main build=py312haa95532_2
+# websocket-client: conda:pkgs/main build=py312haa95532_0
+# werkzeug: conda:pkgs/main build=py312haa95532_0
+# widgetsnbextension: conda:pkgs/main build=py312haa95532_0
+# zipp: conda:pkgs/main build=py312haa95532_0

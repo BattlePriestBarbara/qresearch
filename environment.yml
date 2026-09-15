@@ -1,0 +1,41 @@
+# =====================================================================================
+# qresearch - Conda environment specification (task INF-01)
+#
+# FLOAT-CRITICAL DECISION (see PROJECT_SPEC.md 1.2, 3.1):
+#   numpy / scipy / pandas / torch / statsmodels are installed from *PyPI wheels* via
+#   requirements.txt, NOT from conda channels. Conda-forge and PyPI builds can differ in
+#   BLAS/LAPACK linkage, and therefore in the last few bits of floating-point results.
+#   Those differences propagate into IC series and hence into HAC p-values.
+#   -> One single source of truth for float-critical binaries: requirements.txt.
+#
+# Every pin is a full patch version (X.Y.Z). No ranges, no `~=`, no unpinned extras.
+# =====================================================================================
+name: qresearch
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # --- Interpreter: exact patch level is enforced at runtime by qresearch.env -------------
+  - python=3.12.7
+
+  # --- Tooling that is safe (and convenient) to obtain from conda -------------------------
+  - pip=24.2
+
+  # --- Everything version-sensitive comes from PyPI at exact pins -------------------------
+  - pip:
+      - -r requirements.txt
+      - -r requirements-dev.txt
+
+# ---------------------------------------------------------------------------------------
+# Reproduce the environment:
+#   conda env create -f environment.yml
+#   conda activate qresearch
+#   python -m pip install -e . --no-deps      # editable install of src/qresearch
+#   python scripts/check_env.py                # MUST exit 0; prints the pinned contract
+#
+# Verify or reproduce the exact pip closure (including hashes):
+#   python -m pip freeze --all > requirements.lock.txt
+#   python scripts/lock_requirements.py        # hash-locked variant (needs PyPI access)
+# ---------------------------------------------------------------------------------------

@@ -1,0 +1,43 @@
+# =====================================================================================
+# Canonical Qlib initialization for the qresearch project (tasks INF-01, INF-03).
+#
+# IMPORTANT - single source of truth:
+#   Library and script code MUST obtain these values from
+#   `qresearch.env.build_qlib_init_kwargs()`, which validates the environment contract and
+#   asserts that no path points inside the read-only provider.  This file is the declarative
+#   mirror of that function, used by `qrun`-driven workflows and by code review.
+#
+# READ-ONLY DATA SOURCE (PROJECT_SPEC.md 3.6):
+#   provider_uri points at D:\qlib_data\cn_data. Nothing may ever write there: every cache
+#   and every experiment artifact is redirected to D:\Qlib\artifacts\*.  qresearch rejects at
+#   runtime any configuration that places a cache inside the provider.
+# =====================================================================================
+qlib_init:
+  provider_uri: "D:/qlib_data/cn_data"          # READ-ONLY market data (binary Qlib store)
+  region: cn
+
+  # Windows + non-ASCII paths + torch DataLoader spawn do not mix; keep it single-process.
+  # Determinism also improves: PROJECT_SPEC.md 5.3.
+  kernels: 1
+
+  # Caches are a second source of truth and are therefore disabled by default. When a study
+  # enables them, BOTH paths must stay outside the provider and the cache key must be logged.
+  expression_cache: null                         # e.g. "D:/Qlib/artifacts/qlib_cache/expression_cache"
+  dataset_cache: null                            # e.g. "D:/Qlib/artifacts/qlib_cache/dataset_cache"
+
+  # Experiment tracking: file-based MLflow store under artifacts/ (git-ignored).
+  exp_manager:
+    class: MLflowExpManager
+    module_path: qlib.workflow.expm
+    kwargs:
+      uri: "file:D:/Qlib/artifacts/mlruns"
+      default_exp_name: "alpha_research"
+
+# -------------------------------------------------------------------------------------
+# Hardening the read-only property at the operating-system level (documented, manual step).
+# Run once in an elevated shell to make accidental writes fail even outside this codebase:
+#
+#   icacls "D:\qlib_data\cn_data" /deny "%USERNAME%":(W,D,DC)
+#   # revert with:
+#   icacls "D:\qlib_data\cn_data" /remove:d "%USERNAME%"
+# -------------------------------------------------------------------------------------
