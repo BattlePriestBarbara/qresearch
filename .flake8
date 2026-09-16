@@ -1,0 +1,25 @@
+[flake8]
+# =====================================================================================
+# flake8 configuration (task INF-02). Discovered automatically by `flake8` and by the
+# pre-commit hook, so the rule set lives in exactly one place.
+#
+# Line length is 120 to match black and the upstream Qlib convention.
+# E203/W503: black's slice and line-break style.
+# E266:      block comments with ## are used as section separators.
+# E402:      scripts/ perform a deliberate sys.path bootstrap before their imports.
+# E731:      lambda assignment is permitted for short numerical helpers in tests.
+# =====================================================================================
+max-line-length = 120
+extend-ignore = E203, W503, E266, E402, E731
+max-complexity = 18
+per-file-ignores =
+    tests/*:E731
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    artifacts,
+    .mypy_cache,
+    .pytest_cache,
+    .ruff_cache

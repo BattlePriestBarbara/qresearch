@@ -1,0 +1,3 @@
+Derived data accessor directory. The authoritative market data is the READ-ONLY Qlib store at
+D:\qlib_data\cn_data and MUST NOT be copied or written into this repository. Any derived dataset
+placed here is generated (never hand-edited) and is excluded from Git.

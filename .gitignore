@@ -1,0 +1,143 @@
+# =====================================================================================
+# qresearch - ignore rules (task INF-02)
+# Rule of thumb: the repository contains SOURCE, CONFIG and DOCS only.
+# Data, weights, experiment state and generated artifacts are NEVER committed.
+# =====================================================================================
+
+# -------------------------------------------------------------------------------------
+# Python bytecode, build products, packaging metadata
+# -------------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+src/qresearch/_version.py
+MANIFEST
+
+# -------------------------------------------------------------------------------------
+# Virtual environments (the pinned interpreter is documented in PROJECT_SPEC 3.1)
+# -------------------------------------------------------------------------------------
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# -------------------------------------------------------------------------------------
+# Tooling caches (regenerated on every run; never a source of truth)
+# -------------------------------------------------------------------------------------
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+.pytest_cache/
+.pylint.d/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# -------------------------------------------------------------------------------------
+# Qlib local caches / runtime state.
+# The market data itself (D:\qlib_data\cn_data) is READ-ONLY and lives OUTSIDE this repo;
+# nothing under it may ever be written, least of all by Git.
+# qresearch.env.build_qlib_init_kwargs() redirects all Qlib caches to artifacts/qlib_cache/.
+# -------------------------------------------------------------------------------------
+.qlib/
+qlib_data/
+qlib_cache/
+artifacts/qlib_cache/
+dataset_cache/
+expression_cache/
+
+# -------------------------------------------------------------------------------------
+# Model weights and serialized objects (PROJECT_SPEC 6.5: generated, never committed)
+# -------------------------------------------------------------------------------------
+*.pth
+*.pt
+*.ckpt
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.onnx
+*.bin
+*.npz
+*.npy
+*.safetensors
+*.model
+*.weights
+
+# -------------------------------------------------------------------------------------
+# Experiment tracking and generated research artifacts
+# -------------------------------------------------------------------------------------
+mlruns/
+wandb/
+tensorboard/
+lightning_logs/
+.aim/
+.neptune/
+artifacts/**
+!artifacts/.gitkeep
+
+# -------------------------------------------------------------------------------------
+# Derived/read-only data accessor directory (contents are generated, never committed)
+# -------------------------------------------------------------------------------------
+data/**
+!data/.gitkeep
+
+# -------------------------------------------------------------------------------------
+# Jupyter notebooks: no stored outputs are ever allowed to reach a commit.
+# Enforced mechanically by the `strip-notebook-outputs` hook in .pre-commit-config.yaml.
+# This pattern is a second line of defence for notebooks produced by third-party tooling.
+# -------------------------------------------------------------------------------------
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# -------------------------------------------------------------------------------------
+# Logs and temporary files
+# -------------------------------------------------------------------------------------
+*.log
+logs/
+.temp/
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# -------------------------------------------------------------------------------------
+# Editors and operating system
+# -------------------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# -------------------------------------------------------------------------------------
+# Secrets: credentials for data vendors, trackers or brokers must never be committed.
+# -------------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.yaml

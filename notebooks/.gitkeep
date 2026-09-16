@@ -1,0 +1,4 @@
+Exploratory notebooks only. Notebook outputs are stripped by the `nbstripout` pre-commit hook
+so that commit diffs stay reviewable. Any number that appears in a report must be regenerated
+through a scripts/ entry point (PROJECT_SPEC.md 3.2, 6.1) - notebooks are never a source of
+reported results.

@@ -1,0 +1,143 @@
+# =====================================================================================
+# Pre-commit quality gate (task INF-02).
+#
+# DESIGN DECISION - why local `language: system` hooks with an explicit interpreter:
+#   * mypy MUST run inside the pinned environment, because it needs the real stubs and
+#     modules (qlib, torch, pandas) to type-check the project.  An isolated hook
+#     environment would either fail on imports or force a global ignore-missing-imports,
+#     which is exactly the weakening this gate exists to prevent.
+#   * Pinning the interpreter path removes PATH ambiguity on this machine, where the
+#     default `python` on PATH is an MSYS2 build without the quant stack.
+#   * Hook tool versions are pinned in requirements-dev.txt, so gate results are
+#     reproducible instead of floating with a remote hook revision.
+#
+# Fast gate (runs on every commit): hygiene hooks, black, isort, ruff, mypy, nbstripout.
+# Slow gate (manual / CI):          pylint, pytest.
+#
+# Install:
+#     D:\Anaconda3\Scripts\pre-commit.exe install
+# Run everything once:
+#     D:\Anaconda3\Scripts\pre-commit.exe run --all-files
+# Run the slow gate:
+#     D:\Anaconda3\Scripts\pre-commit.exe run --all-files --hook-stage manual
+# =====================================================================================
+# NOTE: `default_language_version` is deliberately NOT set.
+# Setting it to an interpreter PATH (e.g. "D:/Anaconda3/python.exe") breaks pre-commit on
+# Windows: the value is embedded in the hook virtualenv directory name, and the ':' of the
+# drive letter is an invalid filename character ('py_env-D:'). The pinned interpreter is
+# instead specified explicitly in each `language: system` hook's `entry`.
+#
+# NOTE: hook entry paths use FORWARD SLASHES on purpose. pre-commit splits `entry` with a
+# POSIX shlex, which treats a backslash as an escape character, so "D:\Anaconda3\python.exe"
+# silently becomes "D:Anaconda3python.exe" and every hook fails with "Executable not found".
+# Forward slashes are accepted by CreateProcess on Windows and survive shlex unchanged.
+
+fail_fast: false
+
+repos:
+  # -----------------------------------------------------------------------------------
+  # File hygiene
+  # -----------------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+      - id: mixed-line-ending
+        args: ["--fix=crlf"]
+      - id: debug-statements
+      - id: forbid-submodules
+
+  # -----------------------------------------------------------------------------------
+  # Formatters (must run before linters) - versions pinned in requirements-dev.txt
+  # -----------------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: black
+        name: black (line length 120, Qlib convention)
+        entry: D:/Anaconda3/python.exe -m black
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+        args: ["--line-length=120"]
+
+      - id: isort
+        name: isort (profile black, line length 120)
+        entry: D:/Anaconda3/python.exe -m isort
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+        args: ["--settings-path=pyproject.toml"]
+
+  # -----------------------------------------------------------------------------------
+  # Static analysis
+  # -----------------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (fast lint; unused names, dead code, import order)
+        entry: D:/Anaconda3/python.exe -m ruff check
+        language: system
+        types_or: [python, pyi]
+        args: ["--config=pyproject.toml", "--fix", "--exit-non-zero-on-fix"]
+
+      - id: flake8
+        name: flake8 (upstream-Qlib-compatible rules; config in .flake8)
+        entry: D:/Anaconda3/python.exe -m flake8
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: mypy (strict; tensor and Index shape safety)
+        entry: D:/Anaconda3/python.exe -m mypy
+        language: system
+        types: [python]
+        files: ^src/qresearch/
+        args: ["--config-file=.mypy.ini"]
+        pass_filenames: false
+        require_serial: true
+
+  # -----------------------------------------------------------------------------------
+  # Notebook hygiene: outputs must never reach a commit (large DataFrames, model dumps)
+  # -----------------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: nbstripout
+        name: nbstripout (strip notebook outputs and execution counts)
+        entry: D:/Anaconda3/python.exe -m nbstripout
+        language: system
+        files: \.ipynb$
+        exclude: ^artifacts/
+        require_serial: true
+
+  # -----------------------------------------------------------------------------------
+  # Slow gate: manual / CI only
+  # -----------------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint (semantic gate, score >= 9.0)
+        entry: D:/Anaconda3/python.exe -m pylint
+        language: system
+        types: [python]
+        files: ^src/qresearch/
+        args: ["--rcfile=.pylintrc", "--fail-under=9.0"]
+        stages: [manual]
+
+      - id: pytest
+        name: pytest (unit + leakage + statistical validation suites)
+        entry: D:/Anaconda3/python.exe -m pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [manual]
+        args: ["-q", "-m", "not slow"]

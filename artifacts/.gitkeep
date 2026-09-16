@@ -1,0 +1,4 @@
+Generated research artifacts live here and are intentionally NOT tracked by Git.
+Expected layout (PROJECT_SPEC.md 3.7): mlruns/, qlib_cache/, predictions/, models/,
+reports/, figures/, tables/.  Every file here is reproducible from a tracked
+(git_sha, config_hash, data_snapshot_hash, seed) tuple; nothing here is a source of truth.

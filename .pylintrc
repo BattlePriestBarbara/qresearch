@@ -1,0 +1,71 @@
+[MASTER]
+# =====================================================================================
+# pylint configuration for qresearch (PROJECT_SPEC.md 3.8, 5.5).
+#
+# pylint is the SLOW, semantics-oriented gate (too slow for every commit): it runs in the
+# quality-gate script and on demand via `pre-commit run --hook-stage manual pylint`.
+# The fast gate on every commit is ruff + black + isort + mypy.
+# =====================================================================================
+py-version = 3.12
+# Single-process on purpose: pylint's parallel mode (jobs = 0) crashes with
+# astroid.exceptions.AstroidError on this Windows + non-ASCII-path machine. The same hazard is
+# why qlib is pinned to kernels = 1 in configs/qlib_init.yaml (PROJECT_SPEC.md 5.3).
+jobs = 1
+persistent = yes
+suggestion-mode = yes
+ignore = _version.py
+ignore-patterns = ^build/|^dist/|^artifacts/
+
+[MESSAGES CONTROL]
+disable =
+    # formatting is owned by black
+    C0301,  # line-too-long
+    # documentation discipline is enforced by review, not by pylint
+    C0114,  # missing-module-docstring
+    C0115,  # missing-class-docstring
+    C0116,  # missing-function-docstring
+    R0801,  # duplicate-code (mathematical code is legitimately repetitive)
+    R0913,  # too-many-arguments (optimizer/backtest signatures are genuinely wide)
+    R0914,  # too-many-locals (vectorised numerical code)
+    R0902,  # too-many-instance-attributes (config objects)
+    W0511,  # fixme
+enable =
+    W0125,  # using-constant-test
+    W0101,  # unreachable
+    E1101,  # no-member
+    E1121,  # too-many-function-args
+    W1113,  # keyword-arg-before-vararg
+    W1509,  # subprocess-popen-preexec-fn
+
+[FORMAT]
+max-line-length = 120
+max-module-lines = 2000
+indent-string = '    '
+
+[BASIC]
+good-names = i, j, k, q, t, n, w, x, y, z, ex, run, _, df, sr
+
+[DESIGN]
+max-args = 12
+max-attributes = 12
+max-bool-expr = 6
+max-branches = 20
+max-locals = 30
+max-parents = 10
+max-public-methods = 30
+max-returns = 10
+max-statements = 80
+min-public-methods = 0
+
+[VARIABLES]
+dummy-variables-rgx = _+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy
+ignored-argument-names = _.*|exc|tb
+
+[IMPORTS]
+allow-wildcard-with-all = no
+
+[SIMILARITIES]
+min-similarity-lines = 12
+ignore-comments = yes
+ignore-docstrings = yes
+ignore-imports = yes
