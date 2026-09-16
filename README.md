@@ -42,29 +42,54 @@ significance threshold, silently invalidating a research conclusion.
 |---|---|
 | `requirements.txt` | Direct runtime deps, **full patch pins only** (no ranges, no `~=`) |
 | `requirements-dev.txt` | Formatter/linter/typing/test tools, same pin policy |
-| `environment.yml` | Conda spec: `python=3.12.7` + the two requirement files |
-| `requirements.lock.txt` | **Exact transitive closure** (210 distributions) of the verified environment, offline, with provenance notes |
-| `requirements.lock.hashes.txt` | **sha256 digest lock** (202 distributions) usable with `pip install --require-hashes` |
+| `environment.yml` | **Hybrid env spec** (ADR-003): `python=3.12.7` + the conda-managed native extensions + a `pip:` block referencing the pip lock |
+| `requirements.lock.txt` | **Exact transitive closure** (210 distributions) of the verified environment, offline, with per-package provenance |
+| `requirements.lock.pip.txt` | The same closure **minus the conda-managed** distributions (207) — the file `environment.yml` installs |
+| `requirements.lock.hashes.txt` | **sha256 digest lock** (207 distributions) usable with `pip install --require-hashes` |
+
+### Hybrid environment strategy — 底层 C/C++ 扩展由 Conda 托管，纯 Python 科学计算栈由 Pip Hash 锁定
+
+> *Low-level C/C++ extensions are managed by conda; the pure-Python scientific stack is
+> hash-locked by pip.* — see [ADR-003](docs/adr/ADR-003-hybrid-conda-pip-environment.md)
+
+A pure-pip closure is **impossible** for CPython 3.12 here, because some native extensions were
+released before 3.12 and ship no compatible wheel. Compiling them with pip would drag an unpinned
+MSVC toolchain and unpinned build dependencies into the environment — the exact non-determinism
+`PROJECT_SPEC.md` 3.1 forbids. The split is therefore:
+
+| Category | Rule (derived by `scripts/lock_requirements.py`) | Managed by | Current members |
+|---|---|---|---|
+| `wheel` | a wheel tagged `cp312`, `py3*`, or stable-ABI `cp3X-abi3` (`X ≤ 12`) exists | **pip**, digest-pinned | 206 |
+| `sdist_pure_python` | the release ships **no wheel at all** → pure Python, no compiler needed | **pip**, sdist digest pinned | `gym==0.26.2` |
+| `conda` | wheels exist but none compatible with this interpreter | **conda**, pinned in `environment.yml` incl. build string | `psutil==5.9.0`, `pywin32==305` (reports 305.1), `pywinpty==2.0.10` |
+
+`gym` needs no compiler (pure Python) and conda-forge only reaches `0.26.1`, so delegating it to
+conda would silently downgrade a dependency of the verified environment; it stays pip-managed with
+its sdist digest in the lock.
 
 ```powershell
-# reproduce the environment
-C:\path\to\conda.exe env create -f environment.yml
+# reproduce the environment (two managers, in this order)
+D:\Anaconda3\Scripts\conda.exe env create -f environment.yml   # python + 3 native extensions
 conda activate qresearch
-D:\Anaconda3\python.exe -m pip install -e . --no-deps     # editable, src-layout
+D:\Anaconda3\python.exe -m pip install --require-hashes -r requirements.lock.hashes.txt
+D:\Anaconda3\python.exe -m pip install -e . --no-deps          # editable, src-layout
 
 # verify the contract (exit 0 required)
 D:\Anaconda3\python.exe scripts\check_env.py
 
-# regenerate the lock artefacts (offline closure; --hashes also fetches sha256 digests)
+# regenerate every lock artefact (offline closure; --hashes adds the PyPI classification)
 D:\Anaconda3\python.exe scripts\lock_requirements.py --hashes
-
-# hermetic install from the digest lock
-D:\Anaconda3\python.exe -m pip install --require-hashes -r requirements.lock.hashes.txt
 ```
 
 **Float-critical policy.** `numpy`, `scipy`, `pandas` and `torch` are installed from **PyPI
 wheels**, never from a conda channel: conda and PyPI builds differ in BLAS/LAPACK linkage and
-therefore in the last bits of every computed moment. `environment.yml` documents this.
+therefore in the last bits of every computed moment.
+
+> **Fidelity nuance (recorded deliberately).** In the currently verified environment, `pandas`,
+> `statsmodels` and `scikit-learn` happen to come from conda builds. The hybrid specification
+> reproduces them from hash-verified PyPI wheels at **identical versions** (asserted at runtime by
+> `scripts/check_env.py`). Adding them to the conda section is a one-line change if byte-level
+> fidelity to that specific environment is required.
 
 > **Field note (observed and fixed).** Installing `pandas-stubs` / `scipy-stubs` silently
 > upgraded `numpy` to `2.5.3`, breaking the pin. The stubs were removed, `numpy` restored to
@@ -165,7 +190,8 @@ reported must be regenerated through a `scripts/` entry point (`PROJECT_SPEC.md`
 
 | Task | Artefact | Evidence |
 |---|---|---|
-| `INF-01` exact locking | `requirements.txt`, `requirements-dev.txt`, `environment.yml`, `requirements.lock.txt`, `scripts/lock_requirements.py` | pin-policy tests; hash-lock verification via `--require-hashes` |
+| `INF-01` exact locking | `requirements.txt`, `requirements-dev.txt`, `environment.yml`, `requirements.lock*.txt`, `scripts/lock_requirements.py` | pin-policy tests; hybrid-split consistency tests; lock format verified against `pip --require-hashes` |
+| `INF-01` hybrid environment (`ADR-003`) | conda section pins the 3 wheel-less native extensions with build strings; `pip:` block installs `requirements.lock.pip.txt` | `tests/test_dependency_pinning.py::test_environment_yml_conda_set_matches_the_delegated_set` |
 | `INF-01` environment assertion | `src/qresearch/env.py`, import-time hook in `src/qresearch/__init__.py`, `scripts/check_env.py`, console script `qresearch-check-env` | `tests/test_env_contract.py` (raises `RuntimeError`, aggregates all violations, no bypass variable) |
 | `INF-01` read-only isolation | `fingerprint_tree`, `ProviderWriteGuard`, `assert_provider_isolation`, `build_qlib_init_kwargs`, `configs/qlib_init.yaml` | `tests/test_provider_readonly.py` |
 | `INF-02` src-layout | `pyproject.toml`, `src/qresearch/**`, `py.typed` | `tests/test_repo_structure.py` |

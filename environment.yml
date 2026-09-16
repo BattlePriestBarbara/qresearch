@@ -1,41 +1,86 @@
 # =====================================================================================
-# qresearch - Conda environment specification (task INF-01)
+# qresearch - HYBRID environment specification (tasks INF-01 / INF-02, ADR-003)
 #
-# FLOAT-CRITICAL DECISION (see PROJECT_SPEC.md 1.2, 3.1):
-#   numpy / scipy / pandas / torch / statsmodels are installed from *PyPI wheels* via
-#   requirements.txt, NOT from conda channels. Conda-forge and PyPI builds can differ in
-#   BLAS/LAPACK linkage, and therefore in the last few bits of floating-point results.
-#   Those differences propagate into IC series and hence into HAC p-values.
-#   -> One single source of truth for float-critical binaries: requirements.txt.
+#   底层 C/C++ 扩展由 Conda 托管，纯 Python 科学计算栈由 Pip Hash 锁定。
+#   Low-level C/C++ extensions are managed by conda; the pure-Python scientific stack is
+#   hash-locked by pip.
 #
-# Every pin is a full patch version (X.Y.Z). No ranges, no `~=`, no unpinned extras.
+# WHY HYBRID (see docs/adr/ADR-003-hybrid-conda-pip-environment.md):
+#   A pure-pip closure cannot be completed for CPython 3.12: some native extensions were
+#   released before 3.12 and ship no compatible wheel (here: psutil, pywin32, pywinpty), and
+#   pyqlib requires `gym`, which publishes no wheel at all.  Forcing pip to COMPILE those
+#   native extensions would drag an unpinned MSVC toolchain and unpinned build dependencies
+#   into the environment and produce per-machine binaries - exactly the non-determinism that
+#   PROJECT_SPEC.md 3.1 forbids.
+#
+# THE SPLIT IS DERIVED, NOT HAND-WRITTEN:
+#   scripts/lock_requirements.py classifies every closure member by wheel availability
+#   ("wheel" / "sdist_pure_python" / "conda") and a test asserts that the conda section below
+#   contains exactly the set the classifier delegates to conda.
+#
+#   * conda-managed : releases whose wheels are all incompatible with this interpreter
+#                     (native extensions built before CPython 3.12).
+#   * pip-managed   : everything with a compatible wheel (`cp312`, `py3*`, or stable-ABI
+#                     `cp3X-abi3` with X <= 12), hash-pinned in requirements.lock.hashes.txt.
+#                     Also `gym`, whose release is sdist-only PURE PYTHON: pip builds it with
+#                     no compiler, so its sdist digest stays in the lock.
+#
+# FLOAT-CRITICAL POLICY: numpy / scipy / pandas / torch are installed from PyPI wheels
+#   (hash-verified), never from a conda channel, because conda and PyPI builds can differ in
+#   BLAS/LAPACK linkage and therefore in the last few bits of every computed moment.  Those
+#   differences propagate into the IC series and hence into HAC p-values.
+#
+# Fidelity note: in the currently VERIFIED environment, pandas / statsmodels / scikit-learn
+#   happen to come from conda builds.  This file reproduces them from hash-verified PyPI
+#   wheels at IDENTICAL versions (asserted at runtime by scripts/check_env.py).  If byte-level
+#   fidelity to that particular environment is required, add those three packages to the conda
+#   section below; the classifier's rule is wheel availability, not installation provenance.
 # =====================================================================================
 name: qresearch
 
 channels:
-  - conda-forge
   - defaults
+  - conda-forge
 
 dependencies:
   # --- Interpreter: exact patch level is enforced at runtime by qresearch.env -------------
   - python=3.12.7
 
-  # --- Tooling that is safe (and convenient) to obtain from conda -------------------------
+  # --- Conda tooling ----------------------------------------------------------------------
   - pip=24.2
 
-  # --- Everything version-sensitive comes from PyPI at exact pins -------------------------
+  # --- Conda-managed native extensions (no compatible wheel exists for CPython 3.12) -------
+  # Pins are version=build_string so the binary artefact is reproducible, not just the version.
+  - psutil=5.9.0=py312h2bbff1b_0        # C extension; PyPI 5.9.0 predates cp312
+  - pywin32=305=py312h2bbff1b_0         # conda version 305; the distribution reports 305.1
+  - pywinpty=2.0.10=py312h5da7b33_0     # Rust extension; PyPI 2.0.10 predates cp312
+
+  # --- Pip-managed closure: the full closure MINUS the three packages above ---------------
   - pip:
-      - -r requirements.txt
-      - -r requirements-dev.txt
+      # 207 distributions, digest-pinned: requirements.lock.hashes.txt
+      # Install hermetically after `conda env create`:
+      #     D:\Anaconda3\python.exe -m pip install --require-hashes -r requirements.lock.hashes.txt
+      # `gym==0.26.2` is built from its sdist by pip (pure Python, no compiler).  If byte-exact
+      # build reproducibility is required, install with --no-build-isolation so that the
+      # already-pinned setuptools/wheel are reused instead of being fetched at build time.
+      - -r requirements.lock.pip.txt
 
 # ---------------------------------------------------------------------------------------
-# Reproduce the environment:
-#   conda env create -f environment.yml
-#   conda activate qresearch
-#   python -m pip install -e . --no-deps      # editable install of src/qresearch
-#   python scripts/check_env.py                # MUST exit 0; prints the pinned contract
+# Reproduce the environment (two managers, in this order):
 #
-# Verify or reproduce the exact pip closure (including hashes):
-#   python -m pip freeze --all > requirements.lock.txt
-#   python scripts/lock_requirements.py        # hash-locked variant (needs PyPI access)
+#   conda env create -f environment.yml          # interpreter + the 3 native extensions
+#   conda activate qresearch
+#   python -m pip install --require-hashes -r requirements.lock.hashes.txt
+#   python -m pip install -e . --no-deps         # editable install of src/qresearch
+#   python scripts/check_env.py                  # MUST exit 0; prints the pinned contract
+#   python -m pip check                          # confirms the pip layer is self-consistent
+#
+# Regenerate every lock artefact (offline closure first, then PyPI classification):
+#   python scripts/lock_requirements.py            # requirements.lock.txt
+#   python scripts/lock_requirements.py --hashes   # + requirements.lock.pip.txt and
+#                                                  #   requirements.lock.hashes.txt
+#
+# If conda is unavailable, the pip path still works for everything except the three native
+# extensions (psutil, pywin32, pywinpty): those have no compatible wheel and MUST NOT be
+# compiled with pip (ADR-003).
 # ---------------------------------------------------------------------------------------

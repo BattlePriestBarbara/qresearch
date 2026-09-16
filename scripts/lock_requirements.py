@@ -18,18 +18,29 @@ Artefacts
 ``requirements.lock.txt``
     Exact version closure: ``name==version`` for every distribution reachable from
     ``requirements.txt`` plus ``requirements-dev.txt``.  Offline and deterministic.
+``requirements.lock.pip.txt``
+    The same closure MINUS the distributions that conda manages (see ADR-003).  This is the file
+    referenced by the ``pip:`` block of ``environment.yml``.
 ``requirements.lock.hashes.txt``
-    The same closure with ``--hash=sha256:...`` digests, usable as
+    The pip-managed set with ``--hash=sha256:...`` digests, usable as
     ``pip install --require-hashes -r requirements.lock.hashes.txt``.
-    Distributions with no PyPI wheel for this interpreter are listed in a comment block with
-    their conda build string instead of being silently dropped.
+
+Hybrid environment strategy (ADR-003)
+-------------------------------------
+The closure is classified by wheel availability for the running interpreter:
+
+* **wheel** - a compatible wheel exists; pip manages it, digests are hash-pinned.
+* **sdist_pure_python** - the release ships no wheel at all (pure-Python project); pip builds it
+  without any compiler, so it stays pip-managed with the sdist digest pinned.
+* **conda** - wheels exist but none compatible with this interpreter (native extensions built
+  before CPython 3.12); conda manages these and ``environment.yml`` pins them.
 
 Usage
 -----
 .. code-block:: powershell
 
     D:\\Anaconda3\\python.exe scripts/lock_requirements.py            # version lock (offline)
-    D:\\Anaconda3\\python.exe scripts/lock_requirements.py --hashes   # + digest lock (network)
+    D:\\Anaconda3\\python.exe scripts/lock_requirements.py --hashes   # + pip & digest locks (network)
 """
 
 from __future__ import annotations
@@ -42,10 +53,12 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib import metadata as importlib_metadata
 from pathlib import Path
+from types import MappingProxyType
 
 from packaging.requirements import Requirement
 
@@ -205,18 +218,51 @@ def _pypi_digests(name: str, version: str, *, timeout: float = 30.0) -> dict[str
     return digests
 
 
-def _has_compatible_wheel(filenames: Iterable[str]) -> bool:
-    """Report whether any wheel matches this interpreter (cp312 or pure-python, this platform)."""
-    for filename in filenames:
-        if not filename.endswith(".whl"):
-            continue
-        tags = filename[: -len(".whl")].rsplit("-", 3)[-3:]
-        if len(tags) != 3:
-            continue
-        python_tag, _abi, platform_tag = tags
-        python_ok = any(token in {"cp312", "py3", "py2", "py2.py3"} for token in python_tag.split("."))
-        platform_ok = platform_tag in {"any", "win_amd64"} if platform.system() == "Windows" else True
-        if python_ok and platform_ok:
+def _interpreter_wheel_tag() -> str:
+    """Return the CPython wheel tag of the running interpreter, e.g. ``cp312``."""
+    return f"cp{sys.version_info.major}{sys.version_info.minor}"
+
+
+def _platform_tags() -> frozenset[str]:
+    """Return the platform tags a wheel may carry to be installable on this machine."""
+    system = platform.system()
+    machine = platform.machine().lower()
+    if system == "Windows":
+        arch = "win_amd64" if machine in {"amd64", "x86_64"} else "win32"
+        return frozenset({"any", arch})
+    if system == "Darwin":
+        return frozenset({"any", f"macosx_10_12_{'arm64' if machine in {'arm64', 'aarch64'} else 'x86_64'}"})
+    return frozenset({"any", "manylinux2014_x86_64", "manylinux_2_17_x86_64", "linux_x86_64"})
+
+
+def _wheel_is_compatible(filename: str) -> bool:
+    """Report whether a wheel file is installable on the running interpreter and platform.
+
+    Two wheel flavours are accepted:
+
+    * **version-specific** wheels whose python tag equals this interpreter (``cp312``);
+    * **stable-ABI** wheels tagged ``cp3X-abi3`` with ``X <= <this minor version>``, which are
+      forward compatible by design.  Ignoring this class was a real defect: it wrongly excluded
+      ``clarabel``, ``cryptography``, ``tornado`` and ``argon2-cffi-bindings``, all of which ship
+      usable ``cp3X-abi3`` wheels.
+    * **pure-python** wheels (``py3``/``py2.py3``).
+    """
+    if not filename.endswith(".whl"):
+        return False
+    parts = filename[: -len(".whl")].rsplit("-", 3)
+    if len(parts) != 4:
+        return False
+    _name_version, python_tag, abi_tag, platform_tag = parts
+    if platform_tag not in _platform_tags():
+        return False
+    expected = _interpreter_wheel_tag()
+    for tag in python_tag.split("."):
+        if tag in {"py3", "py2"}:
+            return True
+        if tag == expected:
+            return True
+        stable_abi = re.fullmatch(r"cp3(\d+)", tag)
+        if stable_abi and abi_tag.startswith("abi3") and int(stable_abi.group(1)) <= sys.version_info.minor:
             return True
     return False
 
@@ -268,37 +314,133 @@ def _write_version_lock(closure: dict[str, str], provenance: dict[str, str], out
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _write_hash_lock(closure: dict[str, str], output: Path) -> tuple[int, list[str]]:
-    """Write the digest lock; return ``(pinned_count, names_without_compatible_wheel)``."""
-    body: list[str] = ["--require-hashes", ""]
-    pinned = 0
-    no_wheel: list[str] = []
-    provenance: dict[str, str] = {}
-    for name, version in sorted(closure.items()):
-        digests = _pypi_digests(name, version)
-        if not digests or not _has_compatible_wheel(digests):
-            # No wheel for this interpreter: it is NOT emitted into the --require-hashes body,
-            # because pip would then try to build it from source during a hermetic install.
-            no_wheel.append(f"{name}=={version}")
-            provenance[name] = "no wheel for this interpreter; provided by conda (see requirements.lock.txt)"
-            continue
-        body.append(f"{name}=={version} \\")
-        digest_lines = [f"    --hash=sha256:{digest}" for digest in sorted(digests.values())]
-        body.extend(digest_lines)
-        pinned += 1
-    if provenance:
-        body += ["", "# --- distributions above WITHOUT a compatible PyPI wheel on this interpreter ---"]
-        body += [f"# {name}: {detail}" for name, detail in sorted(provenance.items())]
+# ---------------------------------------------------------------------------------------
+# Hybrid environment strategy (see docs/adr/ADR-003)
+#
+# Every distribution in the closure is classified as one of:
+#   * "wheel"              - a wheel compatible with this interpreter/platform exists on PyPI;
+#                            pip manages it and its digests are hash-pinned.
+#   * "sdist_pure_python"  - the release ships NO wheel at all, which is the signature of a
+#                            pure-Python project (e.g. gym, pulled in by pyqlib).  pip can build
+#                            it without any compiler, so it stays pip-managed and its sdist
+#                            digests are hash-pinned.
+#   * "conda"              - the release ships wheels, but none compatible with this interpreter
+#                            (e.g. psutil 5.9.0, pywin32, pywinpty: CPython extensions built
+#                            before 3.12).  Compiling these with pip would be fragile, so conda
+#                            manages them and they are listed in environment.yml.
+# ---------------------------------------------------------------------------------------
+CATEGORY_WHEEL = "wheel"
+CATEGORY_SDIST_PURE_PYTHON = "sdist_pure_python"
+CATEGORY_CONDA = "conda"
+PIP_LOCK = REPO_ROOT / "requirements.lock.pip.txt"
+
+
+@dataclass(frozen=True)
+class ClassifiedDistribution:
+    """One closure member together with its management category and PyPI digests."""
+
+    name: str
+    version: str
+    category: str
+    digests: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def pinned_requirement(self) -> str:
+        """Return ``name==version``."""
+        return f"{self.name}=={self.version}"
+
+    @property
+    def pip_managed(self) -> bool:
+        """Return whether pip (not conda) is responsible for this distribution."""
+        return self.category != CATEGORY_CONDA
+
+    @property
+    def needs_build(self) -> bool:
+        """Return whether pip would have to build this distribution from an sdist."""
+        return self.category == CATEGORY_SDIST_PURE_PYTHON
+
+
+def _classify(name: str, version: str) -> ClassifiedDistribution:
+    """Classify one closure member against PyPI wheel availability."""
+    digests = _pypi_digests(name, version)
+    if not digests:
+        return ClassifiedDistribution(name, version, CATEGORY_CONDA)
+    if any(_wheel_is_compatible(filename) for filename in digests):
+        return ClassifiedDistribution(name, version, CATEGORY_WHEEL, MappingProxyType(digests))
+    if not any(filename.endswith(".whl") for filename in digests):
+        return ClassifiedDistribution(name, version, CATEGORY_SDIST_PURE_PYTHON, MappingProxyType(digests))
+    return ClassifiedDistribution(name, version, CATEGORY_CONDA)
+
+
+def _classify_closure(closure: dict[str, str]) -> dict[str, ClassifiedDistribution]:
+    """Classify every distribution in the closure."""
+    return {name: _classify(name, version) for name, version in sorted(closure.items())}
+
+
+def _split_by_category(
+    classified: Mapping[str, ClassifiedDistribution],
+) -> tuple[list[ClassifiedDistribution], list[ClassifiedDistribution], list[ClassifiedDistribution]]:
+    """Return ``(pip_wheel, pip_sdist, conda)`` groupings, each sorted by name."""
+    pip_wheel = [item for item in classified.values() if item.category == CATEGORY_WHEEL]
+    pip_sdist = [item for item in classified.values() if item.category == CATEGORY_SDIST_PURE_PYTHON]
+    conda = [item for item in classified.values() if item.category == CATEGORY_CONDA]
+    return (
+        sorted(pip_wheel, key=lambda i: i.name),
+        sorted(pip_sdist, key=lambda i: i.name),
+        sorted(conda, key=lambda i: i.name),
+    )
+
+
+def _write_pip_lock(classified: Mapping[str, ClassifiedDistribution], output: Path) -> list[str]:
+    """Write ``requirements.lock.pip.txt``; return the names delegated to conda."""
+    pip_managed = sorted(item.pinned_requirement for item in classified.values() if item.pip_managed)
+    conda_managed = sorted(item.pinned_requirement for item in classified.values() if not item.pip_managed)
     header = _header(
-        "requirements.lock.hashes.txt - DIGEST-PINNED CLOSURE (INF-01)",
+        "requirements.lock.pip.txt - PIP-MANAGED CLOSURE (hybrid strategy, ADR-003)",
         [
-            "# Digests are the sha256 values published by the PyPI JSON API for that release.",
-            "# Install: D:\\Anaconda3\\python.exe -m pip install --require-hashes \\",
-            "#              -r requirements.lock.hashes.txt",
+            "# Contents: the dependency closure MINUS the distributions that conda manages.",
+            "# Conda-managed (pinned in environment.yml instead):",
+            *([f"#   - {requirement}" for requirement in conda_managed] or ["#   (none)"]),
+            "#   Reason: those releases ship no wheel compatible with this interpreter, and building",
+            "#   native extensions with pip is fragile (ADR-003).",
+            f"# Pip-managed distributions: {len(pip_managed)}",
+            "# Install: referenced from environment.yml; hermetically via",
+            "#          pip install --require-hashes -r requirements.lock.hashes.txt",
         ],
     )
-    output.write_text("\n".join([*header, *body]) + "\n", encoding="utf-8")
-    return pinned, no_wheel
+    output.write_text("\n".join([*header, "", *pip_managed]) + "\n", encoding="utf-8")
+    return conda_managed
+
+
+def _write_hash_lock(
+    classified: Mapping[str, ClassifiedDistribution], output: Path
+) -> tuple[int, list[str], list[str]]:
+    """Write ``requirements.lock.hashes.txt``; return ``(pinned, sdist_only, conda_managed)``."""
+    pip_wheel, pip_sdist, conda = _split_by_category(classified)
+    body: list[str] = ["--require-hashes", ""]
+    for item in [*pip_wheel, *pip_sdist]:
+        body.append(f"{item.pinned_requirement} \\")
+        body.extend(f"    --hash=sha256:{digest}" for digest in sorted(item.digests.values()))
+    notes: list[str] = []
+    if pip_sdist:
+        notes += ["", "# --- sdist-only, pure Python: pip builds these WITHOUT a compiler ---"]
+        notes += [f"# {item.pinned_requirement}" for item in pip_sdist]
+    if conda:
+        notes += ["", "# --- NOT hash-pinned here: managed by conda (see environment.yml) ---"]
+        notes += [f"# {item.pinned_requirement}" for item in conda]
+    header = _header(
+        "requirements.lock.hashes.txt - DIGEST-PINNED PIP CLOSURE (INF-01, ADR-003)",
+        [
+            "# Digests are the sha256 values published by the PyPI JSON API for that release.",
+            "# Install: pip install --require-hashes -r requirements.lock.hashes.txt",
+        ],
+    )
+    output.write_text("\n".join([*header, *body, *notes]) + "\n", encoding="utf-8")
+    return (
+        len(pip_wheel) + len(pip_sdist),
+        [item.pinned_requirement for item in pip_sdist],
+        [item.name for item in conda],
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -318,19 +460,26 @@ def main(argv: list[str] | None = None) -> int:
 
     _write_version_lock(closure, provenance, VERSION_LOCK)
     print(f"wrote {VERSION_LOCK.name}: {len(closure)} distributions in the closure")
-    for name, detail in sorted(provenance.items()):
-        print(f"  provenance note: {name} -> {detail}")
 
     if not args.hashes:
-        print("digest lock skipped (pass --hashes to fetch sha256 digests from PyPI)")
+        print("classification skipped (pass --hashes to query PyPI and write the pip + digest locks)")
         return 0
 
-    pinned, no_wheel = _write_hash_lock(closure, HASH_LOCK)
+    classified = _classify_closure(closure)
+    conda_in_pip_lock = _write_pip_lock(classified, PIP_LOCK)
+    pinned, sdist_only, conda_names = _write_hash_lock(classified, HASH_LOCK)
+
+    print(f"wrote {PIP_LOCK.name}: {len(classified) - len(conda_names)} pip-managed distributions")
     print(f"wrote {HASH_LOCK.name}: {pinned} distributions digest-pinned")
-    if no_wheel:
-        print("  without a compatible PyPI wheel (recorded as comments, NOT hash-verified):")
-        for entry in no_wheel:
+    if sdist_only:
+        print("  sdist-only (pure Python, pip builds them without a compiler):")
+        for entry in sdist_only:
             print(f"    - {entry}")
+    if conda_names:
+        print("  conda-managed (pinned in environment.yml, deliberately NOT hash-pinned by pip):")
+        for entry in conda_names:
+            print(f"    - {entry}")
+    assert len(conda_in_pip_lock) == len(conda_names), "pip lock and digest lock disagree on the conda set"
     return 0
 
 
