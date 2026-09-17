@@ -43,7 +43,9 @@ max-module-lines = 2000
 indent-string = '    '
 
 [BASIC]
-good-names = i, j, k, q, t, n, w, x, y, z, ex, run, _, df, sr
+# `X` is the tensor field name mandated by PROJECT_SPEC.md 3.4.3 (`X: (N, L, d)`), so the
+# snake_case rule cannot apply to it.
+good-names = i, j, k, q, t, n, w, x, y, z, X, ex, run, _, df, sr
 
 [DESIGN]
 max-args = 12

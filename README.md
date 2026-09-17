@@ -207,8 +207,58 @@ were already necessary are recorded in the relevant config comments:
 * **ADR-worthy note 1** — `mypy` runs in-environment rather than in an isolated hook venv.
 * **ADR-worthy note 2** — third-party stub packages are rejected in favour of per-module mypy
   overrides, because they caused a float-critical `numpy` upgrade.
+* **ADR-003** — the hybrid conda/pip environment split.
+* **ADR-004** — the label purge radius uses the inclusive price window (one extra period relative
+  to the literal formula in `PROJECT_SPEC.md` 2.2.5, i.e. the conservative direction).
 
-## 6. Next tasks
+## 6. Data snapshot — what the store actually contains (`INF-03`)
 
-`INF-03` (Qlib init + data sanity CLI) → `INF-04` (point-in-time universe) → `INF-05` (labels) →
-`INF-06` (features) → `INF-07` (handler/dataset) → `INF-08` (leakage audit harness).
+`scripts/data_check.py` reports the inventory rather than assuming it:
+
+```text
+provider   : D:\qlib_data\cn_data (read-only)
+calendar   : 1999-11-10 .. 2020-09-25 (4943 trading days)
+universe   : csi300 -> 690 instruments (membership intervals, not a point-in-time count)
+sample     : SH600000 cols=['$open', '$close', '$volume', '$factor'], rows=424, missing_rate=0.0047
+```
+
+Three consequences are recorded here so no study walks into them:
+
+1. **The snapshot ends on 2020-09-25.** Every example date range in `PROJECT_SPEC.md` (2008–2024,
+   test 2019–2024) is therefore illustrative only; `data_check.py` exits `5` when a requested window
+   reaches beyond the store, because that is a data-domain failure rather than a code failure.
+2. **The store carries no fundamental fields** — only price/volume/factor. The announcement-lag
+   machinery of `INF-04` and its stress test are therefore exercised on synthetic fundamentals
+   (`tests/test_pit_announcement_lag.py`), and wiring a real PIT fundamentals source is a
+   data-acquisition task, not a code task.
+3. **`csi300` membership intervals are not a point-in-time count.** `D.list_instruments` returns the
+   union of all memberships (690 here); the tradable set on a given date comes from
+   `qresearch.data.universe.membership_mask`, which reads the recorded intervals.
+
+## 7. Phase 1 — data pipeline and leakage audit (`INF-04` … `INF-08`)
+
+| Task | Artefact | Invariant proven by tests |
+|---|---|---|
+| `INF-04` | `qresearch/data/universe.py` — announcement-lag conversion, `assert_point_in_time`, tradability masks | a Q1 value produced 2024-03-31 but announced 2024-04-25 is **invisible through 2024-04-24** and present from 2024-04-25, at *feature* and at *model-prediction* level; the deliberately leaky report-date variant is caught (`tests/test_pit_announcement_lag.py`) |
+| `INF-05` | `qresearch/data/labels.py` — `LabelSpec`, forward returns, rank/z targets, availability mask, purge radius | no row is dropped for being unavailable; a suspension on the **execution** date invalidates the label |
+| `INF-06` | `qresearch/data/processors.py` — rolling/expanding/CS normalizers + `assert_causal` | an extreme outlier at `t+1` leaves the standardization at `t` **bit-identical**; the leaky global z-score is refused unless explicitly flagged and is caught by both probes (`tests/test_rolling_normalization.py`) |
+| `INF-07` | `qresearch/data/handlers.py` — `PanelBundle`, `build_sequence_bundle`, `masked_mean` | **no global dropna**: invalid rows stay in the tensor with `mask=False`, a neutral fill and a per-step `step_mask`; `masked_mean` excludes them and returns `nan` (not `0.0`) when nothing is valid (`tests/test_handler_mask.py`) |
+| `INF-08` | `qresearch/data/audit.py` — `LeakageAuditor`, `DataLeakageDetectedError`, `audit_prefix_invariance` | time-permuted labels are unpredictable under a purged split; a contaminated split (duplicates across the boundary) **is** rejected; the audit is seed-reproducible; prefix replay catches a full-sample feature pipeline (`tests/test_leakage_auditor.py`) |
+| `ST-01` | `qresearch/stats/ic.py` — `rank_ic`, `pearson_ic`, `ic_moments` (pulled forward: the audit needs it) | per-date statistics match `scipy` on the same cross-sections |
+
+**Statistical note on the audit (`INF-08`).** The test is the one-sided t-test of the
+**shuffled-label** IC against zero, not a comparison of the real-label statistic with a shuffle null:
+a genuinely skilful model scores high on real labels and a memorising pipeline scores high on
+permuted labels, so the latter construction has no power. Its sensitivity limit is documented *and
+tested*: a linear audit model cannot exploit duplicate-row contamination, while a lookup-capable
+model can. Practical rule: run the audit with a model at least as expressive as the production model.
+
+## 8. Next tasks
+
+`ST-02` (Newey–West HAC estimator) → `ST-03` (significance tests / DM) → `ST-04`–`ST-07`
+(bootstrap, quantile monotonicity, multiple testing, deflated Sharpe) → `ST-08`–`ST-10`
+(purged splitters, reports, statistical validation suite).
+
+Also outstanding from `INF-07`: the `DataHandlerLP`/`Alpha158` expression wiring and a real-store
+panel loader, so the bundle builder of `qresearch.data.handlers` can be driven by the Qlib data
+layer directly rather than by caller-supplied panels.

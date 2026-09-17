@@ -107,6 +107,10 @@ fixable = ["I", "F401", "W291", "W293"]
 # ---------------------------------------------------------------------------------------
 # pytest: tests import the INSTALLED package (src-layout), never a local shadow copy.
 # ---------------------------------------------------------------------------------------
+[tool.ruff.lint.per-file-ignores]
+# mypy 1.11 cannot parse PEP 695 `type X = ...` aliases, so the TypeAlias form is mandatory here.
+"src/qresearch/utils/typing.py" = ["UP040"]
+
 [tool.pytest.ini_options]
 minversion = "7.4"
 testpaths = ["tests"]
