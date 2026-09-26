@@ -10,11 +10,11 @@ statistical inference**, built on Microsoft Qlib.
 
 | Field | Value |
 |---|---|
-| Project root | `D:\Qlib` |
-| Interpreter | `D:\Anaconda3\python.exe` (CPython **3.12.7** — enforced at runtime) |
+| Project root | Discovered from the packaging metadata — never declared (`ADR-005`) |
+| Interpreter | The activated pinned environment (`$QRESEARCH_PYTHON`, else `%CONDA_PREFIX%`, else the running one) — CPython **3.12.7**, enforced at runtime |
 | Framework | `pyqlib==0.9.7` |
-| Market data (read-only) | `D:\qlib_data\cn_data` |
-| Spec version | `v1.0.0` |
+| Market data (read-only) | `$QLIB_DATA_DIR` (fallback `<home>/.qlib/qlib_data/cn_data`) |
+| Spec version | `v1.1.0` |
 
 ---
 
@@ -26,11 +26,38 @@ The runtime contract is **enforced in code**, not documented and hoped for:
 qresearch.env.verify_environment()  ->  runs automatically when `qresearch` is imported
 ```
 
-* CPython must be exactly **3.12.7** on `D:\Anaconda3\python.exe`.
+* CPython must be exactly **3.12.7** on the interpreter of the activated environment
+  (`$QRESEARCH_PYTHON`, else `%CONDA_PREFIX%`, else the running interpreter — `ADR-005`).
 * Every float-critical distribution must match its full patch version.
 * Any mismatch raises `EnvironmentContractError` (a `RuntimeError`) and **terminates the
   process**. There is deliberately **no** bypass flag: a silent downgrade is the exact failure
   mode this check prevents.
+
+### Paths and configuration (`ADR-005`)
+
+No tracked file names a machine layout: every location is resolved from the environment with a
+documented fallback, and every honoured override is logged (it is printed by the CLIs and embedded in
+`resolved_config.yaml`).
+
+| Location | Override | Fallback |
+|---|---|---|
+| market data (read-only) | `QLIB_DATA_DIR` (`QLIB_PROVIDER_URI` is the legacy alias) | `<home>/.qlib/qlib_data/cn_data` |
+| artifacts, caches, MLflow store | `ARTIFACT_ROOT` | `<project_root>/artifacts` |
+| pinned interpreter | `QRESEARCH_PYTHON` | `%CONDA_PREFIX%/python[.exe]`, else the running interpreter |
+
+A malformed override (empty, relative, a file) raises `ConfigError` instead of being guessed at; no
+override can weaken the contract above.
+
+```powershell
+python scripts/check_env.py                                       # verify the contract + list overrides
+python -m qresearch.config --check configs/study_baseline.yaml    # validate a typed study document
+python -m qresearch.config --expand configs/qlib_init.yaml --out artifacts/generated/qlib_init.yaml
+```
+
+`configs/*.yaml` are `${...}` templates because Qlib expands only `~`, so a `qrun` workflow materializes
+them first. A configuration file may use `${QLIB_DATA_DIR}`, `${QLIB_PROVIDER_URI}` and
+`${ARTIFACT_ROOT:-artifacts}`; any other placeholder is rejected by the loader (`PROJECT_SPEC.md` 3.1.1,
+[ADR-005](docs/adr/ADR-005-path-and-config-management.md)).
 
 Why so strict: a patch drift in `numpy`/`scipy`/`torch` changes the low-order bits of the IC
 series. That propagates into the Newey–West long-run variance and can move a `p`-value across a
@@ -69,16 +96,16 @@ its sdist digest in the lock.
 
 ```powershell
 # reproduce the environment (two managers, in this order)
-D:\Anaconda3\Scripts\conda.exe env create -f environment.yml   # python + 3 native extensions
+conda env create -f environment.yml   # python + 3 native extensions
 conda activate qresearch
-D:\Anaconda3\python.exe -m pip install --require-hashes -r requirements.lock.hashes.txt
-D:\Anaconda3\python.exe -m pip install -e . --no-deps          # editable, src-layout
+python -m pip install --require-hashes -r requirements.lock.hashes.txt
+python -m pip install -e . --no-deps          # editable, src-layout
 
 # verify the contract (exit 0 required)
-D:\Anaconda3\python.exe scripts\check_env.py
+python scripts/check_env.py
 
 # regenerate every lock artefact (offline closure; --hashes adds the PyPI classification)
-D:\Anaconda3\python.exe scripts\lock_requirements.py --hashes
+python scripts/lock_requirements.py --hashes
 ```
 
 **Float-critical policy.** `numpy`, `scipy`, `pandas` and `torch` are installed from **PyPI
@@ -105,12 +132,13 @@ therefore in the last bits of every computed moment.
 
 ### Read-only data source
 
-`D:\qlib_data\cn_data` is **read-only**. The project enforces this three ways:
+The store at `$QLIB_DATA_DIR` (fallback `<home>/.qlib/qlib_data/cn_data`) is **read-only**. The
+project enforces this three ways:
 
 1. **Cache redirection** — `qresearch.env.build_qlib_init_kwargs()` is the only sanctioned way
    to build `qlib.init` arguments. It returns `expression_cache=None`, `dataset_cache=None` by
    default and routes every writable location (opt-in caches, the MLflow tracking store) to
-   `D:\Qlib\artifacts\`, which is git-ignored.
+   `<artifact_root>` (`$ARTIFACT_ROOT`, else `<project_root>/artifacts`), which is git-ignored.
 2. **Path scan** — the generated kwargs are walked recursively; any path pointing inside the
    provider raises `ReadOnlyViolationError`.
 3. **Write detection** — `ProviderWriteGuard` fingerprints the provider tree (file count,
@@ -129,7 +157,7 @@ Optional OS-level hardening (manual, elevated shell) is documented in
 [`configs/qlib_init.yaml`](configs/qlib_init.yaml):
 
 ```powershell
-icacls "D:\qlib_data\cn_data" /deny "%USERNAME%":(W,D,DC)
+icacls "%QLIB_DATA_DIR%" /deny "%USERNAME%":(W,D,DC)
 ```
 
 ---
@@ -142,7 +170,7 @@ does not exist — it is asserted by `tests/test_repo_structure.py`. This preven
 failure where local tests import un-packaged source and hide a missing dependency.
 
 ```text
-D:\Qlib\
+<project root>\
 ├── PROJECT_SPEC.md            # normative specification
 ├── README.md                  # this file
 ├── pyproject.toml             # packaging (src-layout) + black/isort/ruff/pytest config
@@ -167,10 +195,10 @@ D:\Qlib\
 
 | Gate | Scope | Command |
 |---|---|---|
-| **Fast** (every commit) | hygiene, `black`, `isort`, `ruff`, `flake8`, `mypy`, `nbstripout` | `D:\Anaconda3\Scripts\pre-commit.exe install` then normal commits |
+| **Fast** (every commit) | hygiene, `black`, `isort`, `ruff`, `flake8`, `mypy`, `nbstripout` | `pre-commit install`, then normal commits |
 | **Slow** (CI / before reporting) | `pylint --fail-under=9.0`, `pytest -q -m "not slow"` | `pre-commit run --all-files --hook-stage manual` |
-| Tests | unit + statistical validation | `D:\Anaconda3\python.exe -m pytest -q` |
-| Types | strict, tensor/Index shape safety | `D:\Anaconda3\python.exe -m mypy --config-file .mypy.ini` |
+| Tests | unit + statistical validation | `python -m pytest -q` |
+| Types | strict, tensor/Index shape safety | `python -m mypy --config-file .mypy.ini` |
 
 `mypy` runs as a `language: system` hook on purpose: it needs the **pinned** environment to see
 `qlib`/`torch`/`pandas`, so it cannot live in an isolated hook virtualenv without being weakened
@@ -222,7 +250,7 @@ were already necessary are recorded in the relevant config comments:
 `scripts/data_check.py` reports the inventory rather than assuming it:
 
 ```text
-provider   : D:\qlib_data\cn_data (read-only)
+  provider   : $QLIB_DATA_DIR (read-only)
 calendar   : 1999-11-10 .. 2020-09-25 (4943 trading days)
 universe   : csi300 -> 690 instruments (membership intervals, not a point-in-time count)
 sample     : SH600000 cols=['$open', '$close', '$volume', '$factor'], rows=424, missing_rate=0.0047

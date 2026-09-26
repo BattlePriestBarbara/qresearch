@@ -1,0 +1,92 @@
+# =====================================================================================
+# Reference study document for the typed configuration schema (task INF-10).
+#
+#   Validate :  qresearch-config --check configs/study_baseline.yaml
+#
+# It mirrors the required shape of PROJECT_SPEC.md 3.5 and exercises every validation rule of
+# qresearch.config.loader: unknown keys are rejected, the segments must not overlap, fit_end_time
+# must not pass the train end, and a zero transaction cost is refused.
+#
+# Every path is a template resolved by ADR-005 - see configs/qlib_init.yaml for the rationale.
+# =====================================================================================
+study:
+  name: baseline_csi300
+  seed: 42
+
+qlib_init:
+  provider_uri: "${QLIB_DATA_DIR}"
+  region: cn
+  kernels: 1
+  expression_cache: null
+  dataset_cache: null
+  exp_manager:
+    class: MLflowExpManager
+    module_path: qlib.workflow.expm
+    kwargs:
+      uri: "file:${ARTIFACT_ROOT:-artifacts}/mlruns"
+      default_exp_name: "alpha_research"
+
+data_handler:
+  class: AlphaHandlerLP
+  module_path: qresearch.data.handlers
+  kwargs:
+    start_time: 2008-01-01
+    end_time: 2024-12-31
+    fit_start_time: 2008-01-01
+    fit_end_time: 2016-12-31
+    instruments: csi300
+    infer_processors:
+      - {class: RobustZScoreNorm, kwargs: {fields_group: feature, clip_outlier: true}}
+      - {class: Fillna, kwargs: {fields_group: feature}}
+    learn_processors:
+      - {class: DropnaLabel}
+      - {class: CSRankNorm, kwargs: {fields_group: label}}
+
+segments:
+  train: [2008-01-01, 2016-12-31]
+  valid: [2017-01-01, 2018-12-31]
+  test: [2019-01-01, 2024-12-31]
+  purge_radius: 1
+
+model:
+  class: StudentTSeqModel
+  module_path: qresearch.models.qlib_adapter
+  kwargs:
+    d_feat: 158
+    seq_len: 20
+    hidden_size: 128
+    num_layers: 2
+    encoder: gru
+    loss: student_t
+    lambda_rank: 0.3
+    n_epochs: 100
+    lr: 1.0e-3
+    batch_size: 1024
+    early_stop: 20
+    seed: 42
+
+backtest:
+  start_time: 2019-01-01
+  end_time: 2024-12-31
+  benchmark: SH000300
+  account: 1.0e+8        # PyYAML requires a *signed* exponent for a float; 1.0e8 would be a string
+  exchange_kwargs:
+    open_cost: 0.0015
+    close_cost: 0.0025
+    min_cost: 5.0
+    trade_unit: 100
+    limit_threshold: 0.095
+    deal_price: close
+  strategy:
+    class: CostAwareMVStrategy
+    module_path: qresearch.portfolio.strategies
+    kwargs:
+      topk: 50
+      n_drop: 5
+      risk_degree: 0.95
+      rebalance: daily
+  executor:
+    class: SimulatorExecutor
+    module_path: qlib.backtest.executor
+    kwargs:
+      time_per_step: day

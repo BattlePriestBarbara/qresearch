@@ -16,6 +16,14 @@ import pytest
 
 import qresearch
 from qresearch import env
+from qresearch.config import paths
+from qresearch.config.errors import ConfigError
+
+MSYS_INTERPRETER = str(Path("D:") / "msys64" / "mingw64" / "bin" / "python.exe")
+"""A forbidden interpreter build (MSYS2), assembled from parts so no literal path is tracked."""
+
+FOREIGN_INTERPRETER = str(Path("C:") / "Python310" / "python.exe")
+"""An interpreter that is not the pinned one, for the aggregated-diagnosis test."""
 
 
 @pytest.mark.unit
@@ -91,7 +99,10 @@ def test_wrong_distribution_version_raises_and_is_flagged(monkeypatch: pytest.Mo
 @pytest.mark.unit
 def test_forbidden_interpreter_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     """The MSYS2 interpreter on PATH must never be accepted."""
-    monkeypatch.setattr(env.sys, "executable", r"D:\msys64\mingw64\bin\python.exe")
+    # The two interpreters used here are assembled from parts instead of spelled out: a literal
+    # machine path must not appear in a tracked file (ADR-005), and the assertions are about the
+    # *diagnosis*, not about the machine.
+    monkeypatch.setattr(env.sys, "executable", MSYS_INTERPRETER)
     with pytest.raises(env.EnvironmentContractError) as error_info:
         env.verify_environment(require_pinned_interpreter=False, require_exact_distributions=False)
     assert "msys64" in str(error_info.value)
@@ -101,13 +112,30 @@ def test_forbidden_interpreter_is_rejected(monkeypatch: pytest.MonkeyPatch) -> N
 def test_multiple_violations_are_aggregated(monkeypatch: pytest.MonkeyPatch) -> None:
     """One run must diagnose the whole environment, not one defect at a time."""
     monkeypatch.setattr(env.platform, "python_version", lambda: "3.10.13")
-    monkeypatch.setattr(env.sys, "executable", r"C:\Python310\python.exe")
+    monkeypatch.setattr(env.sys, "executable", FOREIGN_INTERPRETER)
     with pytest.raises(env.EnvironmentContractError) as error_info:
         env.verify_environment(require_exact_distributions=False)
     message = str(error_info.value)
     assert message.count("  - ") >= 2
     assert "python: interpreter reports 3.10.13" in message
-    assert "interpreter: sys.executable=C:\\Python310\\python.exe" in message
+    assert f"interpreter: sys.executable={FOREIGN_INTERPRETER}" in message
+
+
+@pytest.mark.unit
+def test_configuration_errors_share_one_family() -> None:
+    """A path/configuration failure is a ``ConfigError``; the env and provider errors are members."""
+    assert issubclass(env.EnvironmentContractError, ConfigError)
+    assert issubclass(env.ReadOnlyViolationError, ConfigError)
+    assert issubclass(ConfigError, RuntimeError)
+
+
+@pytest.mark.unit
+def test_contract_constants_come_from_the_resolver() -> None:
+    """ADR-005: the contract's locations are resolved from configuration, never written down."""
+    assert paths.interpreter() == env.EXPECTED_INTERPRETER
+    assert paths.data_dir() == env.DEFAULT_PROVIDER_URI
+    assert paths.cache_root() == env.DEFAULT_CACHE_ROOT
+    assert paths.data_dir() == qresearch.PROVIDER_URI
 
 
 @pytest.mark.unit

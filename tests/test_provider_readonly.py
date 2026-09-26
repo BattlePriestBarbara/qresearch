@@ -1,7 +1,7 @@
 """Read-only provider guard tests for task ``INF-01``.
 
 The market-data store is a read-only input.  These tests prove that the project can *detect*
-a write into it, so that a silent cache inside ``D:\\qlib_data\\cn_data`` can never be mistaken
+a write into it, so that a silent cache inside the provider can never be mistaken
 for a clean data snapshot.
 """
 

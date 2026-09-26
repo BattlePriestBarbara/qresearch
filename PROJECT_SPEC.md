@@ -6,15 +6,16 @@
 | Field | Value |
 |---|---|
 | Document ID | `PROJECT_SPEC` |
-| Version | `v1.0.0` |
+| Version | `v1.1.0` |
 | Status | **NORMATIVE — Ratified baseline** |
 | Document class | Highest-order governing specification (supersedes ad-hoc decisions) |
-| Project root | `D:\Qlib` |
+| Project root | Discovered from the packaging metadata (`pyproject.toml` above the installed package), never declared (ADR-005) |
 | Underlying framework | `pyqlib 0.9.7` (Microsoft Qlib) |
-| Market data root | `D:\qlib_data\cn_data` (China A-share binary Qlib store) |
-| Reference framework source | `D:\qlib_project\qlib` (read-only reference clone) |
-| Runtime | `D:\Anaconda3\python.exe` — CPython 3.12.7 |
+| Market data root | `$QLIB_DATA_DIR`, read-only; fallback `<home>/.qlib/qlib_data/cn_data` (ADR-005) |
+| Reference framework source | A read-only local clone of Qlib, outside this repository |
+| Runtime | The activated pinned environment (`$QRESEARCH_PYTHON`), CPython 3.12.7 |
 | Date of ratification | 2026-09-15 |
+| Amendments | `v1.1.0` — ADR-005 (path and configuration management; sections 3.1, 3.1.1, 3.2, 3.3, 3.5, 5.4) |
 | Owner | Quantitative Research Architecture (Lead Architect) |
 
 ### Normative language
@@ -869,7 +870,7 @@ produced by `PO-08` and reported with bootstrap intervals on $A^{\star}$.
 
 | Component | Pinned choice | Rationale |
 |---|---|---|
-| Interpreter | `D:\Anaconda3\python.exe` (CPython 3.12.7) | Sole interpreter holding the validated stack |
+| Interpreter | The pinned environment's interpreter (CPython 3.12.7), resolved per ADR-005 | Sole interpreter holding the validated stack |
 | Core quant framework | `pyqlib == 0.9.7` | Data layer, executor, recorder, model adapters |
 | Numerical | `numpy == 1.26.4`, `pandas == 2.2.2`, `scipy == 1.13.1` | Compatible with Qlib 0.9.7 |
 | Statistical inference | `statsmodels == 0.14.2` (cross-check only) | Our HAC/bootstrap implementations are primary; statsmodels is a test oracle |
@@ -880,22 +881,52 @@ produced by `PO-08` and reported with bootstrap intervals on $A^{\star}$.
 | Plotting | `matplotlib == 3.8.4` | Static report figures |
 | Tests | `pytest` (+ `hypothesis` OPTIONAL) | Unit, integration, statistical, leakage suites |
 
-**Environment rules.** The project MUST NOT be run with the MSYS2 interpreter
-(`D:\msys64\mingw64\bin\python.exe`) or with any interpreter lacking `pyqlib`; the CLI MUST
-verify interpreter identity at start-up and abort with a diagnostic otherwise. All
-dependencies MUST be declared in `requirements.txt` with exact pins.
+**Environment rules.** The project MUST NOT be run with an MSYS2 interpreter (or any interpreter
+carrying a build marker listed in `qresearch.env.FORBIDDEN_INTERPRETER_MARKERS`) or with any interpreter
+lacking `pyqlib`; the CLI MUST verify interpreter identity at start-up and abort with a diagnostic
+otherwise. All dependencies MUST be declared in `requirements.txt` with exact pins.
+
+#### 3.1.1 Path and configuration resolution (ADR-005)
+
+Every filesystem location is an **input**, resolved once by `qresearch.config.paths`; a tracked file MUST
+NOT contain a drive letter, UNC path or home shortcut — not even in a comment, docstring or error
+message. `scripts/prepublish_audit.py` enforces this in the pre-push gate.
+
+| Location | Environment override | Fallback |
+|---|---|---|
+| read-only market data | `QLIB_DATA_DIR` | `<home>/.qlib/qlib_data/cn_data` (Qlib's documented default) |
+| read-only market data | `QLIB_PROVIDER_URI` (legacy alias) | — |
+| generated artifacts, caches, MLflow store | `ARTIFACT_ROOT` | `<project_root>/artifacts` |
+| pinned interpreter | `QRESEARCH_PYTHON` | `%CONDA_PREFIX%/python[.exe]`, else `sys.executable` |
+
+Rules:
+
+1. A malformed override — empty, relative, a file, or (in strict mode) a missing directory — MUST raise
+   `qresearch.config.errors.ConfigError` naming the offending value and the remediation. A *missing*
+   variable MUST use the documented fallback.
+2. Only paths MAY be overridden. A configuration template MAY substitute `${QLIB_DATA_DIR}`,
+   `${QLIB_PROVIDER_URI}` and `${ARTIFACT_ROOT:-<absolute-or-"artifacts">}`; any other placeholder MUST
+   be rejected by the loader.
+3. Every honoured override MUST be logged when applied and embedded in `resolved_config.yaml` under
+   `environment_overrides`.
+4. The interpreter *location* is declarative; the strictness of 3.1 (exact patch version, exact pins,
+   forbidden markers, no bypass variable) MUST NOT be relaxed by any override.
+5. Because Qlib expands only `~`, a `${...}` template MUST be materialized
+   (`qresearch-config --expand FILE [--out FILE]`) before `qrun` reads it;
+   `qresearch.env.build_qlib_init_kwargs()` is the canonical programmatic entry point.
 
 ### 3.2 Directory structure
 
 ```text
-D:\Qlib\
+<project root>\
 ├── PROJECT_SPEC.md                  # THIS DOCUMENT — normative
 ├── README.md                        # Entry point, quickstart, pointer to this spec
 ├── requirements.txt                 # Exact pins
 ├── pyproject.toml                   # Packaging + tool config (black / pylint / mypy / pytest)
 ├── .pylintrc  .mypy.ini             # Lint and typing gates
 ├── configs/
-│   ├── qlib_init.yaml               # qlib.init + MLflow exp_manager + kernels=1 (Windows)
+│   ├── qlib_init.yaml               # qlib.init + MLflow exp_manager + kernels=1 (Windows); ${...} template
+│   ├── study_baseline.yaml          # reference study document for the typed schema (INF-10)
 │   ├── data/
 │   │   ├── handler_alpha158.yaml    # DataHandlerLP for expression features
 │   │   ├── handler_alpha360.yaml    # Longer-window variant (L = 60)
@@ -962,7 +993,7 @@ D:\Qlib\
 ├── tests/                           # pytest suites (Section 3.8)
 ├── scripts/                         # CLI entry points (data_check, run_phase, acceptance_gate)
 ├── notebooks/                       # Exploratory only; never a source of reported numbers
-├── data/                            # Read-only accessor for D:\qlib_data\cn_data
+├── data/                            # Read-only accessor for the store at $QLIB_DATA_DIR
 ├── artifacts/                       # mlruns/, checkpoints/, reports/, tables/
 └── docs/
     ├── adr/                         # Architecture Decision Records (spec deviations)
@@ -980,7 +1011,7 @@ D:\Qlib\
 ### 3.3 Layered data flow
 
 ```text
-  [ D:\qlib_data\cn_data ]   binary Qlib store (calendars / features / instruments)
+  [ $QLIB_DATA_DIR ]   binary Qlib store (calendars / features / instruments)
                  │
                  ▼
   qresearch.data.universe ──▶ point-in-time universe snapshots (immutable parquet)
@@ -1142,7 +1173,7 @@ Constants MAY exist only as documented defaults inside a dataclass in `qresearch
 
 ```yaml
 qlib_init:
-  provider_uri: "D:/qlib_data/cn_data"
+  provider_uri: "${QLIB_DATA_DIR}"     # resolved by ADR-005; materialize before qrun
   region: cn
   kernels: 1                      # Windows safety: Qlib multiprocessing MUST be opt-in
   expression_cache: null          # or a directory path when feature caching is benchmarked
@@ -1151,7 +1182,7 @@ qlib_init:
     class: MLflowExpManager
     module_path: qlib.workflow.expm
     kwargs:
-      uri: "file:D:/Qlib/artifacts/mlruns"
+      uri: "file:${ARTIFACT_ROOT:-artifacts}/mlruns"
       default_exp_name: "alpha_research"
 ```
 
@@ -1201,8 +1232,11 @@ task:
   produces reported numbers.
 - The fully resolved configuration MUST be dumped next to every artifact
   (`resolved_config.yaml`) and hashed with SHA-256 into `config_hash`.
-- Environment overrides MUST be limited to paths (`QLIB_PROVIDER_URI`, `ARTIFACT_ROOT`) and MUST
-  be logged when applied.
+- Environment overrides MUST be limited to paths and MUST be logged when applied: `QLIB_DATA_DIR`,
+  `QLIB_PROVIDER_URI` and `ARTIFACT_ROOT` for locations, `QRESEARCH_PYTHON` for the interpreter
+  location (3.1.1, ADR-005). Any other override is a violation.
+- Paths MUST be expressed as `${...}` placeholders (3.1.1) or resolved through
+  `qresearch.config.paths`; a literal local path in a configuration file MUST be rejected.
 
 ### 3.6 Point-in-time invariants (anti-look-ahead contract)
 
@@ -1282,7 +1316,7 @@ testing.
 |---|---|---|---|---|
 | `INF-01` | Environment bootstrap | `requirements.txt`, `environment.yml`, `scripts/check_env.py` | — | Verifies `sys.executable` is the Anaconda interpreter; imports `qlib` (0.9.7), `torch` (2.8.0), `cvxpy` (1.9.1), `statsmodels` (0.14.2); aborts with a diagnostic otherwise |
 | `INF-02` | Repository skeleton and packaging | `pyproject.toml`, `src/qresearch/**` package skeleton, `configs/`, `tests/`, `scripts/` | `INF-01` | `pip install -e .` succeeds; `import qresearch` works; `black -l 120 --check`, `pylint`, `mypy` run clean on the empty skeleton |
-| `INF-03` | Qlib initialization and data sanity CLI | `configs/qlib_init.yaml`, `scripts/data_check.py` | `INF-02` | `qlib.init` succeeds against `D:/qlib_data/cn_data`; the CLI reports calendar range, instrument count, feature-store size and a `SH600000` sample row |
+| `INF-03` | Qlib initialization and data sanity CLI | `configs/qlib_init.yaml`, `scripts/data_check.py` | `INF-02` | `qlib.init` succeeds against the store resolved by `$QLIB_DATA_DIR`; the CLI reports calendar range, instrument count, feature-store size and a `SH600000` sample row |
 | `INF-04` | Calendar, universe and tradability layer | `qresearch/data/universe.py` | `INF-03` | Point-in-time universe builder with suspension/limit/new-listing masks; immutable parquet snapshots with a content hash; unit tests for boundary dates |
 | `INF-05` | Label construction | `qresearch/data/labels.py` | `INF-04` | Forward-return labels for $h \in \{1,5,20\}$ on open prices with execution lag 1; rank and $z$ variants; unit test comparing against an independent closed-form computation |
 | `INF-06` | Feature pipeline and processors | `qresearch/features/expressions.py`, `registry.py`, `qresearch/data/processors.py` | `INF-03` | alpha158/alpha360 registries load; all estimated processors are train-only-fitted and picklable; feature coverage report emitted |
@@ -1498,8 +1532,8 @@ acceptable as a *local* variable in a training routine, not as part of a public 
   `SignConventionError`. Silent `except Exception: pass` is prohibited.
 - Every long-running script MUST be idempotent with respect to its run identifier and MUST
   refuse to overwrite a completed run without an explicit `--force` flag.
-- Reads from `D:\qlib_data\cn_data` MUST be read-only; writes go only to `D:\Qlib\artifacts`
-  or `D:\Qlib\data` (derived artifacts).
+- Reads from the store at `$QLIB_DATA_DIR` MUST be read-only; writes go only to
+  `<artifact_root>` or `<project_root>/data` (derived artifacts).
 
 ### 5.5 Git and review conventions
 

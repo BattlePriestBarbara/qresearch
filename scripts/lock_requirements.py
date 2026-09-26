@@ -39,8 +39,8 @@ Usage
 -----
 .. code-block:: powershell
 
-    D:\\Anaconda3\\python.exe scripts/lock_requirements.py            # version lock (offline)
-    D:\\Anaconda3\\python.exe scripts/lock_requirements.py --hashes   # + pip & digest locks (network)
+    python scripts/lock_requirements.py            # version lock (offline)
+    python scripts/lock_requirements.py --hashes   # + pip & digest locks (network)
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ def _closure(direct: dict[str, str]) -> dict[str, str]:
         except importlib_metadata.PackageNotFoundError:
             raise SystemExit(
                 f"distribution '{name}' is required but not installed; "
-                "run `D:\\Anaconda3\\python.exe scripts/check_env.py` to diagnose the environment"
+                "run `python scripts/check_env.py` to diagnose the environment"
             ) from None
         for child in _active_requirements(name):
             key = _canonical(child)
@@ -277,17 +277,22 @@ def _version_lock_lines(closure: dict[str, str], provenance: dict[str, str]) -> 
 
 
 def _header(title: str, extra: Iterable[str] = ()) -> list[str]:
-    """Return the provenance header shared by both lock artefacts."""
+    """Return the provenance header shared by both lock artefacts.
+
+    Only the interpreter's *name* is recorded, never its location (``ADR-005``): a lock file is a
+    tracked file, so a machine path in it would both leak the developer's layout and reappear on every
+    regeneration, which would make the pre-publish path gate impossible to keep green.
+    """
     header = [
         "# =====================================================================================",
         f"# {title}",
         "#",
         "# GENERATED FILE - do not edit by hand. Regenerate with:",
-        "#     D:\\Anaconda3\\python.exe scripts/lock_requirements.py [--hashes]",
+        "#     python scripts/lock_requirements.py [--hashes]",
         "#",
         f"# Generated  : {datetime.now(UTC).isoformat(timespec='seconds')}",
         f"# Python     : {platform.python_version()} on {platform.system()} {platform.machine()}",
-        f"# Interpreter: {sys.executable}",
+        f"# Interpreter: {Path(sys.executable).name}",
         "#",
         "# Rationale (PROJECT_SPEC.md 3.1): a silent version or build drift in numpy/scipy/torch",
         "# perturbs the low-order bits of the IC series and can move a Newey-West p-value across a",
@@ -306,7 +311,7 @@ def _write_version_lock(closure: dict[str, str], provenance: dict[str, str], out
             "# Method : transitive Requires-Dist walk over the INSTALLED, contract-verified",
             "#          distributions (offline, deterministic).  Not a fresh PyPI resolution: the",
             "#          closure recorded here is the one that actually produced the verified numbers.",
-            "# Install: D:\\Anaconda3\\python.exe -m pip install --no-deps -r requirements.lock.txt",
+            "# Install: python -m pip install --no-deps -r requirements.lock.txt",
             "# Digests: see requirements.lock.hashes.txt (pip install --require-hashes)",
         ],
     )

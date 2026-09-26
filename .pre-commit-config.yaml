@@ -1,36 +1,43 @@
 # =====================================================================================
 # Pre-commit quality gate (task INF-02).
 #
-# DESIGN DECISION - why local `language: system` hooks with an explicit interpreter:
+# DESIGN DECISION - why local `language: system` hooks that call scripts/hook_runner.py:
 #   * mypy MUST run inside the pinned environment, because it needs the real stubs and
 #     modules (qlib, torch, pandas) to type-check the project.  An isolated hook
 #     environment would either fail on imports or force a global ignore-missing-imports,
 #     which is exactly the weakening this gate exists to prevent.
-#   * Pinning the interpreter path removes PATH ambiguity on this machine, where the
-#     default `python` on PATH is an MSYS2 build without the quant stack.
+#   * The interpreter is NOT written into this file (ADR-005): a literal path works on one
+#     machine only.  Every hook calls `python scripts/hook_runner.py -m <tool>`, where the
+#     bare `python` only has to reach a stdlib-only bootstrap that then re-executes the tool
+#     with the pinned interpreter (QRESEARCH_PYTHON -> %CONDA_PREFIX% -> the running one).
+#     On this machine the default `python` on PATH is an MSYS2 build without the quant
+#     stack, which is precisely why the runner must never fall back to it.
 #   * Hook tool versions are pinned in requirements-dev.txt, so gate results are
 #     reproducible instead of floating with a remote hook revision.
 #
 # Fast gate (runs on every commit): hygiene hooks, black, isort, ruff, mypy, nbstripout.
 # Slow gate (manual / CI):          pylint, pytest.
+# Pre-push gate:                    scripts/prepublish_audit.py (absolute paths, data isolation,
+#                                   secrets) - the machine-checkable half of the pre-publish review
+#                                   recorded in docs/audits/PRE-PUBLISH-AUDIT.md.
 #
 # Install:
-#     D:\Anaconda3\Scripts\pre-commit.exe install
+#     pre-commit install
 # Run everything once:
-#     D:\Anaconda3\Scripts\pre-commit.exe run --all-files
+#     pre-commit run --all-files
 # Run the slow gate:
-#     D:\Anaconda3\Scripts\pre-commit.exe run --all-files --hook-stage manual
+#     pre-commit run --all-files --hook-stage manual
 # =====================================================================================
 # NOTE: `default_language_version` is deliberately NOT set.
-# Setting it to an interpreter PATH (e.g. "D:/Anaconda3/python.exe") breaks pre-commit on
+# Setting it to an interpreter PATH (e.g. "<conda>/python.exe") breaks pre-commit on
 # Windows: the value is embedded in the hook virtualenv directory name, and the ':' of the
-# drive letter is an invalid filename character ('py_env-D:'). The pinned interpreter is
-# instead specified explicitly in each `language: system` hook's `entry`.
+# drive letter is an invalid filename character ('py_env-D:'). The interpreter is instead
+# resolved at run time by scripts/hook_runner.py (see ADR-005).
 #
 # NOTE: hook entry paths use FORWARD SLASHES on purpose. pre-commit splits `entry` with a
-# POSIX shlex, which treats a backslash as an escape character, so "D:\Anaconda3\python.exe"
-# silently becomes "D:Anaconda3python.exe" and every hook fails with "Executable not found".
-# Forward slashes are accepted by CreateProcess on Windows and survive shlex unchanged.
+# POSIX shlex, which treats a backslash as an escape character, so a Windows separator in an
+# entry silently becomes an unescapable path and every hook fails with "Executable not
+# found". Forward slashes are accepted by CreateProcess on Windows and survive shlex.
 
 fail_fast: false
 
@@ -64,7 +71,7 @@ repos:
     hooks:
       - id: black
         name: black (line length 120, Qlib convention)
-        entry: D:/Anaconda3/python.exe -m black
+        entry: python scripts/hook_runner.py -m black
         language: system
         types_or: [python, pyi]
         require_serial: true
@@ -72,7 +79,7 @@ repos:
 
       - id: isort
         name: isort (profile black, line length 120)
-        entry: D:/Anaconda3/python.exe -m isort
+        entry: python scripts/hook_runner.py -m isort
         language: system
         types_or: [python, pyi]
         require_serial: true
@@ -85,20 +92,20 @@ repos:
     hooks:
       - id: ruff
         name: ruff (fast lint; unused names, dead code, import order)
-        entry: D:/Anaconda3/python.exe -m ruff check
+        entry: python scripts/hook_runner.py -m ruff check
         language: system
         types_or: [python, pyi]
         args: ["--config=pyproject.toml", "--fix", "--exit-non-zero-on-fix"]
 
       - id: flake8
         name: flake8 (upstream-Qlib-compatible rules; config in .flake8)
-        entry: D:/Anaconda3/python.exe -m flake8
+        entry: python scripts/hook_runner.py -m flake8
         language: system
         types: [python]
 
       - id: mypy
         name: mypy (strict; tensor and Index shape safety)
-        entry: D:/Anaconda3/python.exe -m mypy
+        entry: python scripts/hook_runner.py -m mypy
         language: system
         types: [python]
         files: ^src/qresearch/
@@ -113,11 +120,28 @@ repos:
     hooks:
       - id: nbstripout
         name: nbstripout (strip notebook outputs and execution counts)
-        entry: D:/Anaconda3/python.exe -m nbstripout
+        entry: python scripts/hook_runner.py -m nbstripout
         language: system
         files: \.ipynb$
         exclude: ^artifacts/
         require_serial: true
+
+  # -----------------------------------------------------------------------------------
+  # Pre-publish gate: refuses a push that would expose a local path, market data, model
+  # weights or a credential. Rules and severity levels are documented in
+  # scripts/prepublish_audit.py; the review it reproduces is docs/audits/PRE-PUBLISH-AUDIT.md.
+  # Bare `python` is acceptable *here* (unlike the mypy hook): the script is stdlib-only and
+  # needs no part of the pinned numerical stack.
+  # -----------------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: prepublish-audit
+        name: pre-publish audit (absolute paths, data isolation, secrets)
+        entry: python scripts/prepublish_audit.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
 
   # -----------------------------------------------------------------------------------
   # Slow gate: manual / CI only
@@ -126,7 +150,7 @@ repos:
     hooks:
       - id: pylint
         name: pylint (semantic gate, score >= 9.0)
-        entry: D:/Anaconda3/python.exe -m pylint
+        entry: python scripts/hook_runner.py -m pylint
         language: system
         types: [python]
         files: ^src/qresearch/
@@ -135,7 +159,7 @@ repos:
 
       - id: pytest
         name: pytest (unit + leakage + statistical validation suites)
-        entry: D:/Anaconda3/python.exe -m pytest
+        entry: python scripts/hook_runner.py -m pytest
         language: system
         pass_filenames: false
         always_run: true

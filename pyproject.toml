@@ -43,6 +43,7 @@ dev = [
 
 [project.scripts]
 qresearch-check-env = "qresearch.env:main"
+qresearch-config = "qresearch.config.loader:main"
 
 # ---------------------------------------------------------------------------------------
 # src-layout: packages are discovered ONLY under src/, so `import qresearch` in tests and

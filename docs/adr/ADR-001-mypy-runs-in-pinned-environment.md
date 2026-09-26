@@ -15,8 +15,9 @@ Two implementations were possible:
 
 1. A standard remote hook (`repo: https://github.com/pre-commit/mirrors-mypy`) which runs in an
    isolated hook virtualenv.
-2. A `language: system` hook that calls the pinned interpreter
-   (`D:\Anaconda3\python.exe -m mypy`) from `requirements-dev.txt`.
+2. A `language: system` hook that runs the pinned interpreter - originally a literal path, now
+   resolved at run time by `scripts/hook_runner.py` (see `ADR-005`) - with the tools pinned in
+   `requirements-dev.txt`.
 
 ## Decision
 

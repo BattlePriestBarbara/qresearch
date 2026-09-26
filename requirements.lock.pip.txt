@@ -2,11 +2,11 @@
 # requirements.lock.pip.txt - PIP-MANAGED CLOSURE (hybrid strategy, ADR-003)
 #
 # GENERATED FILE - do not edit by hand. Regenerate with:
-#     D:\Anaconda3\python.exe scripts/lock_requirements.py [--hashes]
+#     python scripts/lock_requirements.py [--hashes]
 #
 # Generated  : 2026-09-16T03:53:16+00:00
 # Python     : 3.12.7 on Windows AMD64
-# Interpreter: D:\Anaconda3\python.exe
+# Interpreter: python.exe
 #
 # Rationale (PROJECT_SPEC.md 3.1): a silent version or build drift in numpy/scipy/torch
 # perturbs the low-order bits of the IC series and can move a Newey-West p-value across a

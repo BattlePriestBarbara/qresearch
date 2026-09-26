@@ -1,13 +1,16 @@
 """qresearch - temporal-neural Alpha factor mining on Qlib under strict statistical inference.
 
-This package implements the system specified by ``PROJECT_SPEC.md`` (project root ``D:\\Qlib``).
+This package implements the system specified by ``PROJECT_SPEC.md`` (the project root is discovered
+from the packaging metadata, never written down - see ``ADR-005``).
 The governing specification is normative: interfaces, formulas and naming conventions defined
 there MUST NOT be changed in code without an Architecture Decision Record.
 
 Import-time environment enforcement (task ``INF-01``)
 ----------------------------------------------------
-Importing this package immediately verifies the pinned runtime contract: CPython ``3.12.7`` on
-``D:\\Anaconda3\\python.exe`` with exact patch versions of every float-critical distribution.
+Importing this package immediately verifies the pinned runtime contract: CPython ``3.12.7`` on the
+interpreter selected by :func:`qresearch.config.paths.interpreter` (``$QRESEARCH_PYTHON``, else the
+activated conda prefix, else the running interpreter) with exact patch versions of every
+float-critical distribution.
 The verification runs *before* any ``qlib.init`` call in user code, because a version drift
 changes floating-point results and therefore invalidates statistical inference
 (``PROJECT_SPEC.md`` 1.2.2, 3.1).

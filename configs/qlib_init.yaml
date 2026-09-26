@@ -1,5 +1,5 @@
 # =====================================================================================
-# Canonical Qlib initialization for the qresearch project (tasks INF-01, INF-03).
+# Canonical Qlib initialization for the qresearch project (tasks INF-01, INF-03, INF-10).
 #
 # IMPORTANT - single source of truth:
 #   Library and script code MUST obtain these values from
@@ -7,13 +7,26 @@
 #   asserts that no path points inside the read-only provider.  This file is the declarative
 #   mirror of that function, used by `qrun`-driven workflows and by code review.
 #
+# PATHS ARE TEMPLATES (ADR-005):
+#   Qlib expands only `~` (Path.expanduser); it does NOT read environment variables.  A qrun
+#   workflow therefore materializes the placeholders first:
+#
+#       qresearch-config --expand configs/qlib_init.yaml --out artifacts/generated/qlib_init.yaml
+#
+#   `${QLIB_DATA_DIR}`      -> qresearch.config.paths.data_dir(): the environment variable if
+#                              set, else <home>/.qlib/qlib_data/cn_data (Qlib's own default).
+#   `${ARTIFACT_ROOT:-artifacts}` -> artifact_root(): the environment variable if set, else
+#                              <project_root>/artifacts.
+#   No literal machine path may appear in this file; scripts/prepublish_audit.py enforces that
+#   in the pre-push gate.
+#
 # READ-ONLY DATA SOURCE (PROJECT_SPEC.md 3.6):
-#   provider_uri points at D:\qlib_data\cn_data. Nothing may ever write there: every cache
-#   and every experiment artifact is redirected to D:\Qlib\artifacts\*.  qresearch rejects at
-#   runtime any configuration that places a cache inside the provider.
+#   provider_uri points at the binary Qlib store. Nothing may ever write there: every cache and
+#   every experiment artifact is redirected under artifacts/. qresearch rejects at runtime any
+#   configuration that places a cache inside the provider.
 # =====================================================================================
 qlib_init:
-  provider_uri: "D:/qlib_data/cn_data"          # READ-ONLY market data (binary Qlib store)
+  provider_uri: "${QLIB_DATA_DIR}"               # READ-ONLY market data (binary Qlib store)
   region: cn
 
   # Windows + non-ASCII paths + torch DataLoader spawn do not mix; keep it single-process.
@@ -22,22 +35,22 @@ qlib_init:
 
   # Caches are a second source of truth and are therefore disabled by default. When a study
   # enables them, BOTH paths must stay outside the provider and the cache key must be logged.
-  expression_cache: null                         # e.g. "D:/Qlib/artifacts/qlib_cache/expression_cache"
-  dataset_cache: null                            # e.g. "D:/Qlib/artifacts/qlib_cache/dataset_cache"
+  expression_cache: null            # e.g. "${ARTIFACT_ROOT:-artifacts}/qlib_cache/expression_cache"
+  dataset_cache: null               # e.g. "${ARTIFACT_ROOT:-artifacts}/qlib_cache/dataset_cache"
 
   # Experiment tracking: file-based MLflow store under artifacts/ (git-ignored).
   exp_manager:
     class: MLflowExpManager
     module_path: qlib.workflow.expm
     kwargs:
-      uri: "file:D:/Qlib/artifacts/mlruns"
+      uri: "file:${ARTIFACT_ROOT:-artifacts}/mlruns"
       default_exp_name: "alpha_research"
 
 # -------------------------------------------------------------------------------------
 # Hardening the read-only property at the operating-system level (documented, manual step).
 # Run once in an elevated shell to make accidental writes fail even outside this codebase:
 #
-#   icacls "D:\qlib_data\cn_data" /deny "%USERNAME%":(W,D,DC)
+#   icacls "%QLIB_DATA_DIR%" /deny "%USERNAME%":(W,D,DC)
 #   # revert with:
-#   icacls "D:\qlib_data\cn_data" /remove:d "%USERNAME%"
+#   icacls "%QLIB_DATA_DIR%" /remove:d "%USERNAME%"
 # -------------------------------------------------------------------------------------

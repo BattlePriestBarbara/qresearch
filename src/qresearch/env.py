@@ -8,10 +8,17 @@ This module implements three non-negotiable engineering rules from ``PROJECT_SPE
    process MUST terminate; silent degradation and continue-after-warning are forbidden.
 2. **Import-time enforcement.**  :mod:`qresearch` calls :func:`verify_environment` while being
    imported, so the check necessarily precedes any ``qlib.init`` call in user code.
-3. **Read-only data source.**  ``D:\\qlib_data\\cn_data`` is a read-only input.  All Qlib
-   caches are redirected to a writable directory outside it by
-   :func:`build_qlib_init_kwargs`, and :class:`ProviderWriteGuard` verifies by fingerprint
-   that nothing under the provider tree changed during a computation.
+3. **Read-only data source.**  The Qlib binary store located by
+   :func:`qresearch.config.paths.data_dir` is a read-only input.  All Qlib caches are redirected to
+   a writable directory outside it by :func:`build_qlib_init_kwargs`, and
+   :class:`ProviderWriteGuard` verifies by fingerprint that nothing under the provider tree changed
+   during a computation.
+
+Path policy (``ADR-005``): no location is written into this file.  The provider uri, the cache
+root and the expected interpreter are resolved from the documented environment overrides with the
+documented fallbacks, and every honoured override is logged (see
+:func:`qresearch.config.paths.describe_overrides`).  Only the *location* is configurable; the
+strictness of the contract below is not.
 
 Rationale for strictness (``PROJECT_SPEC.md`` 1.2.2): a version drift in ``numpy``/``scipy``/
 ``torch`` changes the low-order bits of the IC series, which propagates into the Newey-West
@@ -32,6 +39,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
+
+from .config import paths
+from .config.errors import ConfigError
 
 __all__ = [
     "DEFAULT_CACHE_ROOT",
@@ -57,15 +67,23 @@ __all__ = [
 # environment.yml and .mypy.ini so that a drift in any of them is detectable by inspection.
 # ---------------------------------------------------------------------------------------
 PYTHON_VERSION_REQUIRED: Final[str] = "3.12.7"
-EXPECTED_INTERPRETER: Final[Path] = Path(r"D:\Anaconda3\python.exe")
+# The pinned interpreter is DECLARATIVE (ADR-005): $QRESEARCH_PYTHON, else the interpreter of the
+# activated conda prefix, else the running interpreter.  Only the *location* is configurable; the
+# strictness below (exact patch version, distribution pins, forbidden markers, no bypass variable)
+# is not, and an override that names a non-existent interpreter raises ConfigError instead of being
+# ignored.
+EXPECTED_INTERPRETER: Final[Path] = paths.interpreter()
 FORBIDDEN_INTERPRETER_MARKERS: Final[tuple[str, ...]] = (
     "msys64",
     "mingw64",
     "windowsapps",
     "microsoft\\windowsapps",
 )
-DEFAULT_PROVIDER_URI: Final[Path] = Path(r"D:\qlib_data\cn_data")
-DEFAULT_CACHE_ROOT: Final[Path] = Path(r"D:\Qlib\artifacts\qlib_cache")
+# Canonical locations, resolved by ADR-005: $QLIB_DATA_DIR (legacy alias $QLIB_PROVIDER_URI) with
+# the <home>/.qlib/qlib_data/cn_data fallback, and $ARTIFACT_ROOT with the <project_root>/artifacts
+# fallback.  Nothing here names a drive, a user or a checkout.
+DEFAULT_PROVIDER_URI: Final[Path] = paths.data_dir()
+DEFAULT_CACHE_ROOT: Final[Path] = paths.cache_root()
 POLLUTION_MARKERS: Final[tuple[str, ...]] = (
     "qlib_cache",
     "expression_cache",
@@ -105,16 +123,17 @@ REQUIRED_DISTRIBUTIONS: Final[tuple[DistributionRequirement, ...]] = (
 )
 
 
-class EnvironmentContractError(RuntimeError):
+class EnvironmentContractError(ConfigError):
     """Raised when the runtime environment violates the pinned contract (INF-01).
 
-    Inherits from :class:`RuntimeError` so that an uncaught violation terminates the process
-    with a non-zero exit status instead of being swallowed by ``except Exception`` handlers
-    written for data errors.
+    Inherits from :class:`~qresearch.config.errors.ConfigError` and therefore from
+    :class:`RuntimeError`, so an uncaught violation still terminates the process with a non-zero
+    exit status instead of being swallowed by ``except Exception`` handlers written for data
+    errors, while callers may catch the configuration family as one type.
     """
 
 
-class ReadOnlyViolationError(RuntimeError):
+class ReadOnlyViolationError(ConfigError):
     """Raised when the read-only market-data source may have been written to (INF-01)."""
 
 
@@ -459,7 +478,7 @@ def assert_provider_isolation(
     """
     provider = Path(provider_uri).resolve()
     cache = Path(cache_root).resolve()
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = paths.project_root()
 
     if not provider.is_dir():
         raise ReadOnlyViolationError(f"provider_uri {provider} does not exist or is not a directory")
@@ -494,13 +513,14 @@ def build_qlib_init_kwargs(
     """Return the canonical ``qlib.init`` keyword arguments for this project.
 
     The returned mapping is verified to contain no path inside ``provider_uri`` and to route
-    every writable location (Qlib caches, MLflow tracking store) to ``cache_root``, which
-    lives under ``D:\\Qlib\\artifacts`` and is git-ignored.
+    every writable location (Qlib caches, MLflow tracking store) to ``cache_root``, which defaults
+    to ``<artifact_root>/qlib_cache`` (git-ignored, ``ADR-005``).
 
     Parameters
     ----------
     provider_uri : Path
-        Read-only market-data root (default ``D:\\qlib_data\\cn_data``).
+        Read-only market-data root; defaults to
+        :func:`qresearch.config.paths.data_dir` (``$QLIB_DATA_DIR``, else the Qlib default store).
     cache_root : Path
         Writable cache root; MUST NOT be inside ``provider_uri``.
     region : str
@@ -580,9 +600,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+        payload = report.to_dict()
+        payload["environment_overrides"] = [item.to_dict() for item in paths.applied_overrides()]
+        print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(report.format())
+        print(paths.describe_overrides())
 
     if report.pollution:
         print("FAIL: the provider contains cache-like entries; see the report above.", file=sys.stderr)

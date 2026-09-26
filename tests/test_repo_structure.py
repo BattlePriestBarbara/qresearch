@@ -8,6 +8,7 @@ file that keeps data, weights, experiment state and notebook outputs out of Git.
 from __future__ import annotations
 
 import importlib
+import re
 import tomllib
 from pathlib import Path
 
@@ -70,16 +71,23 @@ def test_pyproject_declares_src_layout(repo_root: Path) -> None:
 
 @pytest.mark.unit
 def test_precommit_gate_declares_required_hooks(repo_root: Path) -> None:
-    """The gate must contain the mentor-mandated tools, pinned to the project interpreter."""
+    """The gate must contain the mentor-mandated tools, run through the portable hook runner."""
     config = (repo_root / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     for hook in ("- id: black", "- id: isort", "- id: ruff", "- id: flake8", "- id: mypy", "- id: nbstripout"):
         assert hook in config, f"pre-commit gate is missing {hook}"
     assert "language: system" in config
-    # mypy must run in the pinned environment, not in a bare hook venv, or it cannot see
-    # the qlib/torch stubs and would have to be weakened with ignore-missing-imports.
-    # Forward slashes are mandatory: pre-commit's POSIX shlex eats backslashes in `entry`.
-    assert "D:/Anaconda3/python.exe -m mypy" in config
-    assert "\\Anaconda3\\python.exe -m" not in config, "backslashes break pre-commit hook entries"
+    # mypy must run in the pinned environment, not in a bare hook venv, or it cannot see the
+    # qlib/torch stubs and would have to be weakened with ignore-missing-imports.  The interpreter is
+    # resolved at run time by scripts/hook_runner.py, because a literal interpreter path works on one
+    # machine only (ADR-005) - and a bare `python` on PATH is an MSYS2 build without the quant stack.
+    for tool in ("black", "isort", "ruff check", "flake8", "mypy", "nbstripout"):
+        assert f"scripts/hook_runner.py -m {tool}" in config, f"{tool} must go through the hook runner"
+    assert "entry: python scripts/hook_runner.py" in config
+    # The audit's own drive-path pattern (a non-alphanumeric predecessor and no doubled separator),
+    # so that a URL scheme such as `https://` is not mistaken for a drive letter.
+    assert not re.search(
+        r"(?:^|[^A-Za-z0-9])[A-Za-z]:[\\/](?!/)", config
+    ), "ADR-005: a machine path must not be configured here"
     assert "stages: [manual]" in config, "pylint/pytest must stay in the slow gate"
 
 

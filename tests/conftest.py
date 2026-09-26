@@ -1,7 +1,9 @@
-"""Shared fixtures for the qresearch test suite (tasks ``INF-01``, ``INF-02``).
+"""Shared fixtures for the qresearch test suite (tasks ``INF-01``, ``INF-02``, ``INF-11``).
 
-Fixtures here are deliberately filesystem-only and import nothing from Qlib: the INF phase
-tests must run in milliseconds and must not depend on the market-data store being present.
+The filesystem fixtures are deliberately light and import nothing from Qlib: the INF-phase tests must
+run in milliseconds and must not depend on the market-data store being present.  The one heavy fixture
+is :func:`known_signal_panel`, the synthetic ground-truth panel that ``PROJECT_SPEC.md`` 3.8 requires
+and that every later statistical test reuses.
 """
 
 from __future__ import annotations
@@ -10,13 +12,33 @@ from pathlib import Path
 
 import pytest
 
+from qresearch.data.synthetic import SyntheticPanel, SyntheticPanelSpec, generate_panel
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
-    """Absolute path of the project root (``D:\\Qlib``)."""
+    """Absolute path of the project root, derived from this file rather than declared."""
     return REPO_ROOT
+
+
+@pytest.fixture(scope="session")
+def synthetic_panel_spec() -> SyntheticPanelSpec:
+    """The DGP knobs the statistical tests share: ``N = 100``, ``T = 1000``, injected IC ``0.05``."""
+    return SyntheticPanelSpec()
+
+
+@pytest.fixture(scope="session")
+def known_signal_panel(synthetic_panel_spec: SyntheticPanelSpec) -> SyntheticPanel:
+    """The synthetic panel of ``PROJECT_SPEC.md`` 3.8 / task ``INF-11``.
+
+    ``T = 1000`` decisions on ``N = 100`` instruments with a known population correlation of ``0.05``,
+    Student-:math:`t` noise (fat tails) and persistent features *and* noise (autocorrelated IC series).
+    Ground truth - including the Monte-Carlo standard error of the expected IC - travels with the panel
+    in :attr:`SyntheticPanel.truth`, so a test never has to hard-code a tolerance.
+    """
+    return generate_panel(synthetic_panel_spec)
 
 
 @pytest.fixture()

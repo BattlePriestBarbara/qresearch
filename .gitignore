@@ -48,7 +48,7 @@ htmlcov/
 
 # -------------------------------------------------------------------------------------
 # Qlib local caches / runtime state.
-# The market data itself (D:\qlib_data\cn_data) is READ-ONLY and lives OUTSIDE this repo;
+# The market data itself is READ-ONLY and lives OUTSIDE this repo (ADR-005, $QLIB_DATA_DIR);
 # nothing under it may ever be written, least of all by Git.
 # qresearch.env.build_qlib_init_kwargs() redirects all Qlib caches to artifacts/qlib_cache/.
 # -------------------------------------------------------------------------------------
@@ -95,6 +95,23 @@ artifacts/**
 # -------------------------------------------------------------------------------------
 data/**
 !data/.gitkeep
+
+# -------------------------------------------------------------------------------------
+# Derived datasets, market-data copies and per-machine overrides (pre-publish audit hardening).
+# A snapshot of the read-only store, a derived table (parquet/csv/feather/arrow/db/zarr) or a
+# developer-specific override must not be committable; the store itself lives outside the working
+# tree and is reached through $QLIB_DATA_DIR (ADR-005).
+# -------------------------------------------------------------------------------------
+cn_data/
+calendars/
+*.parquet
+*.csv
+*.feather
+*.arrow
+*.db
+*.sqlite3
+*.zarr/
+configs/local*.yaml
 
 # -------------------------------------------------------------------------------------
 # Jupyter notebooks: no stored outputs are ever allowed to reach a commit.

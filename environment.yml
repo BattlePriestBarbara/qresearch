@@ -59,7 +59,7 @@ dependencies:
   - pip:
       # 207 distributions, digest-pinned: requirements.lock.hashes.txt
       # Install hermetically after `conda env create`:
-      #     D:\Anaconda3\python.exe -m pip install --require-hashes -r requirements.lock.hashes.txt
+      #     python -m pip install --require-hashes -r requirements.lock.hashes.txt
       # `gym==0.26.2` is built from its sdist by pip (pure Python, no compiler).  If byte-exact
       # build reproducibility is required, install with --no-build-isolation so that the
       # already-pinned setuptools/wheel are reused instead of being fetched at build time.

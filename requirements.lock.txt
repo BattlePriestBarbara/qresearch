@@ -2,11 +2,11 @@
 # requirements.lock.txt - EXACT DEPENDENCY CLOSURE OF THE VERIFIED ENVIRONMENT (INF-01)
 #
 # GENERATED FILE - do not edit by hand. Regenerate with:
-#     D:\Anaconda3\python.exe scripts/lock_requirements.py [--hashes]
+#     python scripts/lock_requirements.py [--hashes]
 #
 # Generated  : 2026-09-16T03:54:45+00:00
 # Python     : 3.12.7 on Windows AMD64
-# Interpreter: D:\Anaconda3\python.exe
+# Interpreter: python.exe
 #
 # Rationale (PROJECT_SPEC.md 3.1): a silent version or build drift in numpy/scipy/torch
 # perturbs the low-order bits of the IC series and can move a Newey-West p-value across a
@@ -15,7 +15,7 @@
 # Method : transitive Requires-Dist walk over the INSTALLED, contract-verified
 #          distributions (offline, deterministic).  Not a fresh PyPI resolution: the
 #          closure recorded here is the one that actually produced the verified numbers.
-# Install: D:\Anaconda3\python.exe -m pip install --no-deps -r requirements.lock.txt
+# Install: python -m pip install --no-deps -r requirements.lock.txt
 # Digests: see requirements.lock.hashes.txt (pip install --require-hashes)
 
 alembic==1.18.4
