@@ -210,6 +210,12 @@ were already necessary are recorded in the relevant config comments:
 * **ADR-003** — the hybrid conda/pip environment split.
 * **ADR-004** — the label purge radius uses the inclusive price window (one extra period relative
   to the literal formula in `PROJECT_SPEC.md` 2.2.5, i.e. the conservative direction).
+* **ADR-worthy note 3** (`ST-02`) — `PROJECT_SPEC.md` 3.4.6 declares
+  `newey_west_se(x, bandwidth=None, prewhite=False, small_sample: TestType)`, but `TestType` is
+  defined nowhere in the specification. `small_sample` is bound to the boolean `sqrt(T/(T - k_reg))`
+  correction factor of 2.2.2 option 2, because option 1 (the Student-`t` reference) changes the
+  *p*-value and not the standard error this function returns; option 1 stays reachable through
+  `newey_west(..., reference="student_t")`.
 
 ## 6. Data snapshot — what the store actually contains (`INF-03`)
 
@@ -245,6 +251,7 @@ Three consequences are recorded here so no study walks into them:
 | `INF-07` | `qresearch/data/handlers.py` — `PanelBundle`, `build_sequence_bundle`, `masked_mean` | **no global dropna**: invalid rows stay in the tensor with `mask=False`, a neutral fill and a per-step `step_mask`; `masked_mean` excludes them and returns `nan` (not `0.0`) when nothing is valid (`tests/test_handler_mask.py`) |
 | `INF-08` | `qresearch/data/audit.py` — `LeakageAuditor`, `DataLeakageDetectedError`, `audit_prefix_invariance` | time-permuted labels are unpredictable under a purged split; a contaminated split (duplicates across the boundary) **is** rejected; the audit is seed-reproducible; prefix replay catches a full-sample feature pipeline (`tests/test_leakage_auditor.py`) |
 | `ST-01` | `qresearch/stats/ic.py` — `rank_ic`, `pearson_ic`, `ic_moments` (pulled forward: the audit needs it) | per-date statistics match `scipy` on the same cross-sections |
+| `ST-02` | `qresearch/stats/hac.py` — `newey_west`, `newey_west_se`, `nw_t_stat`, `NeweyWestResult` | the Bartlett long-run variance matches `statsmodels` to `1e-8` at the documented call sites (`OLS.fit(cov_type="HAC")`, `sandwich_covariance.cov_hac`); the automatic bandwidth `floor(4 (T/100)^(2/9))`, the `sqrt(T/(T-k_reg))` factor and the AR(1) pre-whitening re-colouring are each pinned against closed forms; on a positively autocorrelated IC series the HAC error is shown to exceed the i.i.d. one, which is the reason 2.2.2 forbids the latter (`tests/test_hac.py`) |
 
 **Statistical note on the audit (`INF-08`).** The test is the one-sided t-test of the
 **shuffled-label** IC against zero, not a comparison of the real-label statistic with a shuffle null:
@@ -255,9 +262,14 @@ model can. Practical rule: run the audit with a model at least as expressive as 
 
 ## 8. Next tasks
 
-`ST-02` (Newey–West HAC estimator) → `ST-03` (significance tests / DM) → `ST-04`–`ST-07`
-(bootstrap, quantile monotonicity, multiple testing, deflated Sharpe) → `ST-08`–`ST-10`
-(purged splitters, reports, statistical validation suite).
+`ST-03` (significance tests / DM) → `ST-04`–`ST-07` (bootstrap, quantile monotonicity, multiple
+testing, deflated Sharpe) → `ST-08`–`ST-10` (purged splitters, reports, statistical validation
+suite).
+
+Interface item that `ST-02` unblocks but does not close: `ic_moments` (`ST-01`) still reports the
+i.i.d. reference statistic only, so the `t_nw` / `p_nw` / `nw_bandwidth` fields of the `ic_summary`
+row in `PROJECT_SPEC.md` 3.4.6 are not exposed by any function yet. `ST-03` is the task that builds
+that inference layer on top of `newey_west`.
 
 Also outstanding from `INF-07`: the `DataHandlerLP`/`Alpha158` expression wiring and a real-store
 panel loader, so the bundle builder of `qresearch.data.handlers` can be driven by the Qlib data
