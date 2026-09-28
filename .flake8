@@ -8,12 +8,17 @@
 # E266:      block comments with ## are used as section separators.
 # E402:      scripts/ perform a deliberate sys.path bootstrap before their imports.
 # E731:      lambda assignment is permitted for short numerical helpers in tests.
+# C901:      scripts/pdf_research_mcp.py enumerates the PDF content-type branches (line-grid vs.
+#            text-alignment tables, text vs. image blocks) inline on purpose, because that
+#            enumeration is what keeps each per-item failure message precise; the two routines
+#            above the bound are pipelines rather than decision trees, so the exemption is local.
 # =====================================================================================
 max-line-length = 120
 extend-ignore = E203, W503, E266, E402, E731
 max-complexity = 18
 per-file-ignores =
     tests/*:E731
+    scripts/pdf_research_mcp.py:C901
 exclude =
     .git,
     __pycache__,

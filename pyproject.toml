@@ -7,9 +7,9 @@ name = "qresearch"
 version = "0.1.0"
 description = "Temporal-neural Alpha factor mining on Qlib under strict statistical inference"
 readme = "README.md"
-license = { text = "Proprietary" }
+license = { text = "MIT" }             # full text in LICENSE (Copyright (c) 2026 Xinhang Yu)
 requires-python = "==3.12.*"          # exact patch level is enforced at runtime by qresearch.env
-authors = [{ name = "Quantitative Research Architecture" }]
+authors = [{ name = "Xinhang Yu" }]
 keywords = ["quantitative-finance", "alpha", "qlib", "newey-west", "student-t"]
 
 # Direct runtime dependencies, mirrored 1:1 with requirements.txt (full patch pins only).
@@ -111,6 +111,10 @@ fixable = ["I", "F401", "W291", "W293"]
 [tool.ruff.lint.per-file-ignores]
 # mypy 1.11 cannot parse PEP 695 `type X = ...` aliases, so the TypeAlias form is mandatory here.
 "src/qresearch/utils/typing.py" = ["UP040"]
+# scripts/pdf_research_mcp.py is the one file whose prose is Chinese, where full-width
+# punctuation is correct prose rather than a confusable homoglyph: RUF001/RUF002/RUF003 assume
+# English text and would otherwise report ~450 non-issues on correct comments and docstrings.
+"scripts/pdf_research_mcp.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pytest.ini_options]
 minversion = "7.4"

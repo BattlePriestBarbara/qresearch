@@ -31,6 +31,17 @@ env/
 .python-version
 
 # -------------------------------------------------------------------------------------
+# Local tooling for the PDF research MCP server (scripts/pdf_research_mcp.py).
+# `.mcp-pdf-env/` is the machine-local virtualenv that runs it (PyMuPDF / pdfplumber /
+# mcp; deliberately OUTSIDE the pinned runtime closure, which owns the modelling stack
+# only), and `pdf_images/` is the default figure-dump directory of
+# extract_pdf_figures ($PDF_MCP_IMAGES_DIR).  Both are machine-local and regenerated,
+# never a source of truth.
+# -------------------------------------------------------------------------------------
+.mcp-pdf-env/
+pdf_images/
+
+# -------------------------------------------------------------------------------------
 # Tooling caches (regenerated on every run; never a source of truth)
 # -------------------------------------------------------------------------------------
 .mypy_cache/

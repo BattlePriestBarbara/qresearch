@@ -173,9 +173,11 @@ failure where local tests import un-packaged source and hide a missing dependenc
 <project root>\
 ├── PROJECT_SPEC.md            # normative specification
 ├── README.md                  # this file
+├── LICENSE                    # MIT — Copyright (c) 2026 Xinhang Yu (section 10)
 ├── pyproject.toml             # packaging (src-layout) + black/isort/ruff/pytest config
 ├── .mypy.ini                  # strict typing; per-module overrides for stub-less libraries
 ├── .pylintrc                  # slow semantic gate
+├── .flake8                    # flake8 rule set (shared by the hook and a bare `flake8` run)
 ├── .pre-commit-config.yaml    # the mandatory gate
 ├── .gitignore                 # data / weights / trackers / notebook outputs excluded
 ├── environment.yml · requirements.txt · requirements-dev.txt · requirements.lock.txt
@@ -185,7 +187,13 @@ failure where local tests import un-packaged source and hide a missing dependenc
 │   ├── version.py · py.typed
 │   ├── config/   data/   features/   stats/   models/   portfolio/   evaluation/   utils/
 ├── scripts/check_env.py       # INF-01 CLI
+├── scripts/data_check.py      # INF-03 inventory CLI (exits 5 beyond the store snapshot)
 ├── scripts/lock_requirements.py
+├── scripts/prepublish_audit.py  # ADR-005 pre-push gate: machine paths, data, secrets
+├── scripts/pdf_research_mcp.py  # local PDF research MCP server (section 9)
+├── docs/adr/                  # ADR-001 … ADR-005, the decisions behind every deviation
+├── docs/audits/               # the review that prepublish_audit.py reproduces
+├── docs/reports/              # dated progress reports (binary snapshots; see its README)
 ├── tests/                     # env contract, pinning, read-only guard, repo structure
 ├── artifacts/                 # git-ignored: mlruns, caches, reports, figures
 └── data/                      # git-ignored accessor directory
@@ -302,3 +310,43 @@ that inference layer on top of `newey_west`.
 Also outstanding from `INF-07`: the `DataHandlerLP`/`Alpha158` expression wiring and a real-store
 panel loader, so the bundle builder of `qresearch.data.handlers` can be driven by the Qlib data
 layer directly rather than by caller-supplied panels.
+
+## 9. Local research tooling — the PDF research MCP server
+
+`scripts/pdf_research_mcp.py` is a **stdio MCP server** that lets an MCP client (Cline, Claude
+Desktop, …) read a paper as structured text instead of as a screenshot:
+
+| Tool | Backend | Returns |
+|---|---|---|
+| `extract_pdf_text` | PyMuPDF | per-page text, page/character counts, document metadata; a page that carries no text layer (a scan) is reported as needing OCR |
+| `extract_pdf_tables` | pdfplumber | tables per page, aligned by a line-grid pass with a text-alignment fallback |
+| `extract_pdf_figures` | PyMuPDF | figure images written to the dump directory, de-duplicated by content hash |
+
+* **Outside the pinned closure on purpose.** PyMuPDF, pdfplumber and `mcp` live in a separate
+  virtualenv (`.mcp-pdf-env/`, git-ignored) that never touches the float-critical versions the
+  modelling stack is locked to (`PROJECT_SPEC.md` 3.1): nothing under `src/qresearch/` imports the
+  tool and no `requirements*.txt` lists its dependencies, so the contract of `INF-01` is unchanged.
+* **Read-only with respect to the study.** It opens the PDF path the caller passes and writes only
+  into the figure dump directory (`$PDF_MCP_IMAGES_DIR`, fallback `<cwd>/pdf_images`, git-ignored).
+  The market-data store of `INF-01`/`ADR-005` is never opened, let alone written.
+* **Registered per machine, not in the repository** (`ADR-005`): the MCP client config points its
+  command at the venv interpreter and its first argument at `scripts/pdf_research_mcp.py`, so the
+  machine layout stays out of Git while the tool itself stays reviewable.
+* It is the only file whose prose is Chinese: its comments address the tool's operator, and
+  `RUF001`–`RUF003` are disabled for it in `pyproject.toml` because full-width punctuation is
+  correct Chinese prose rather than a confusable homoglyph. `C901` is waived for the two extraction
+  pipelines in `.flake8` for the same class of reason: the content-type branches stay inline so
+  that every per-item failure message remains precise.
+
+## 10. License
+
+MIT — Copyright (c) 2026 **Xinhang Yu**; the full text is in [`LICENSE`](LICENSE). It covers every
+file in this repository, i.e. the quantitative-finance research on Alpha-factor mining and
+statistical inference that Xinhang Yu maintains here.
+
+Third-party components keep their own licences and are not relicensed by this file: `pyqlib`,
+`torch`, `cvxpy`, `mlflow`, `lightgbm`, `scikit-learn`, `matplotlib`, `statsmodels`, `scipy` and
+`numpy` under their respective MIT/BSD-family terms, plus — for the local MCP tooling only —
+`mcp` and `pdfplumber` (MIT) and `PyMuPDF` (**AGPL-3.0 or commercial**; it is imported by
+`scripts/pdf_research_mcp.py` alone and ships in no distributed artefact). Market data is **not**
+covered by this licence and is never redistributed.
